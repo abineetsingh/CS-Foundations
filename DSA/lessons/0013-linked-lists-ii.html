@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0013 — Linked Lists II</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0013 · Phase 1 · ~25 minutes</span>
+  <h1>Linked Lists II: Reversal &amp; Fast/Slow Pointers</h1>
+  <p class="lede">Today's skill: the two techniques behind nearly every linked-list interview question — in-place reversal and the tortoise-and-hare.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>"Reverse a Linked List" is a filter question: interviewers use it to separate people who can juggle three pointers from people who memorized an answer. Fast/slow is subtler — a genuinely clever idea you'll enjoy owning.</p>
+  </div>
+
+  <h2>Technique 1: in-place reversal</h2>
+  <p>Flip every arrow. Walk the list carrying two pointers — <code>prev</code> (done part) and <code>current</code> (remaining part) — and repoint one arrow per step:</p>
+  <pre><code>def reverse_list(head):
+    prev = None
+    current = head
+    while current:
+        nxt = current.next     # 1. save the rest before breaking the link
+        current.next = prev    # 2. flip this arrow backward
+        prev = current         # 3. advance prev
+        current = nxt          # 4. advance current
+    return prev                # prev ends on the old tail = new head</code></pre>
+  <p><code>None ← 3 ← 1 ← 4</code> after three iterations of <code>3 → 1 → 4</code>. O(n) time, O(1) space. The four lines must happen in exactly this order — line 1 is the "don't lose the chain" rule from <a href="./0012-linked-lists-i.html">Lesson 0012</a>. Write this function from memory until it's automatic; it reappears inside harder problems (reverse in k-groups, palindrome list).</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-revlist"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function N() { return [{ v: "&#8709;", cls: "ghost" }, 3, 1, 4]; }
+    const fr = [
+      { nodes: N(), arrows: [".", ">", ">"], ptrs: { 0: "prev", 1: "curr" },
+        note: "prev = None (the &#8709; box), curr = head. Three arrows to flip." },
+      { nodes: N(), arrows: [".", ">", ">"], ptrs: { 0: "prev", 1: "curr", 2: "nxt" },
+        note: "1. SAVE: <code>nxt = curr.next</code> — grab the rest of the chain BEFORE breaking the only link to it." },
+      { nodes: N(), arrows: [{ d: "<", cls: "hl" }, ">", ">"], ptrs: { 0: "prev", 1: "curr", 2: "nxt" },
+        note: "2. FLIP: <code>curr.next = prev</code> — node 3's arrow now points backward, at None." },
+      { nodes: N(), arrows: ["<", ">", ">"], ptrs: { 1: "prev", 2: "curr" },
+        note: "3 &amp; 4. ADVANCE: <code>prev = curr; curr = nxt</code>. One iteration done, one arrow flipped." },
+      { nodes: N(), arrows: ["<", { d: "<", cls: "hl" }, ">"], ptrs: { 1: "prev", 2: "curr", 3: "nxt" },
+        note: "Iteration 2: save 4, flip — node 1 points back at 3." },
+      { nodes: N(), arrows: ["<", "<", ">"], ptrs: { 2: "prev", 3: "curr" },
+        note: "Advance. One arrow to go." },
+      { nodes: N(), arrows: ["<", "<", { d: "<", cls: "hl" }], ptrs: { 3: "prev" },
+        note: "Iteration 3: nxt = None, flip — 4 points back at 1. Advance: curr = None &#8594; the while ends." },
+      { nodes: [{ v: "&#8709;", cls: "ghost" }, { v: 3, cls: "good" }, { v: 1, cls: "good" }, { v: 4, cls: "good" }],
+        arrows: ["<", "<", "<"], ptrs: { 3: "prev" },
+        note: "Return prev — node 4, the old tail, is the new head: None &#8592; 3 &#8592; 1 &#8592; 4. O(n) time, O(1) space, zero nodes lost." }
+    ];
+    Viz.player("viz-revlist", { caption: "reverse_list on 3 &#8594; 1 &#8594; 4 — save, flip, advance, advance", view: Viz.list, frames: fr });
+  })();
+  </script>
+
+  <h2>Technique 2: fast &amp; slow pointers</h2>
+  <p>Two pointers, same start, different speeds — <code>slow</code> moves one hop, <code>fast</code> moves two.</p>
+  <h3>Find the middle (one pass)</h3>
+  <pre><code>def middle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next           # 1 hop
+        fast = fast.next.next      # 2 hops
+    return slow                    # fast hit the end → slow is halfway</code></pre>
+  <p>When fast has gone the whole way, slow has gone half. No length precomputation, no second pass.</p>
+  <h3>Detect a cycle (Floyd's algorithm)</h3>
+  <pre><code>def has_cycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow is fast:           # identity, not equality of values
+            return True
+    return False</code></pre>
+  <p>The argument, worth saying aloud: <em>if there's a cycle, both pointers eventually orbit inside it; fast gains one position per step, so the gap shrinks to zero — they must meet.</em> No cycle → fast reaches None. O(n) time, O(1) space (the O(n)-space alternative — a visited set — is worth mentioning, then beating).</p>
+
+  <h2>Composition: is this list a palindrome?</h2>
+  <p>Middle (fast/slow) + reverse the second half + walk both halves comparing. O(n) time, O(1) space — three lessons of tools snapped together. Try it before looking anything up.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Cycle detection matters wherever structures self-reference: Python's garbage collector hunts reference cycles, and computation-graph builders must reject cycles (a neural net's forward pass must be a DAG — Lesson 0030 makes this precise). Floyd's trick also detects cycles in any iterated function — including pseudo-random generators.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Linked List section</a>: "Reverse Linked List", "Linked List Cycle" videos.</li>
+    <li>Problems: "Reverse Linked List", "Middle of the Linked List", "Linked List Cycle", "Merge Two Sorted Lists" (dummy-node practice), then "Palindrome Linked List".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Tomorrow, before anything else: write reverse_list cold, on paper. If any of the four lines is out of order, tell Claude Code — that retrieval attempt is worth more than three reads of this page.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0012-linked-lists-i.html">← 0012 Linked Lists I</a> · Next: <a href="./0014-binary-search-i.html">0014 Binary Search →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "while current:\n    current.next = prev    # flip first?\n    nxt = current.next     # then save?\n    prev = current\n    current = nxt",
+    prompt: "These two lines are swapped. What happens?",
+    options: [
+      "nxt gets prev's value — the walk goes backward and the rest of the list is lost",
+      "nothing — the four lines commute",
+      "an AttributeError on the first iteration",
+      "the list reverses but the head is off by one"
+    ],
+    answer: 0,
+    explain: "After flipping, current.next IS prev — the saved 'rest of the list' is gone. Save before you break: nxt = current.next must come first."
+  },
+  {
+    prompt: "Why does the fast pointer guarantee a meeting inside a cycle?",
+    options: [
+      "it gains exactly one position per step, so the gap must reach zero",
+      "both pointers eventually return to the head simultaneously",
+      "the cycle forces both pointers to the same speed",
+      "hash collisions inside the cycle force an encounter"
+    ],
+    answer: 0,
+    explain: "Relative speed is 1 node/step. In a cycle of length c, a gap of g closes in g steps. That 'relative motion' framing is the whole proof."
+  },
+  {
+    code: "slow = fast = head\nwhile fast and fast.next:\n    slow = slow.next\n    fast = fast.next.next",
+    prompt: "For an even-length list 1→2→3→4, slow ends on…",
+    options: ["3 — the second middle", "2 — the first middle", "4 — the tail", "1 — it never moves"],
+    answer: 0,
+    explain: "Step 1: slow=2, fast=3. Step 2: fast.next is None… actually fast=3 has next=4, so slow=3, fast=None. Loop ends: slow=3. Even lists have two middles; this template returns the second. Know which one yours returns."
+  },
+  {
+    prompt: "Cycle detection with a visited set vs. Floyd's. The trade is…",
+    options: [
+      "set: O(n) space for simpler code; Floyd: O(1) space, subtler proof",
+      "set: O(n²) time; Floyd: O(n) time",
+      "set: fails on long cycles; Floyd: always works",
+      "no trade — Floyd's is better on every axis"
+    ],
+    answer: 0,
+    explain: "Both are O(n) time and both are correct. Floyd wins on space; the set wins on obviousness. Offering both, then choosing, is strong interview form."
+  },
+  {
+    prompt: "Review from 0012: the dummy-node trick is most useful when…",
+    options: [
+      "the head of the list might be removed or replaced",
+      "the list is guaranteed non-empty",
+      "you need O(1) access to the tail",
+      "values must stay sorted during insertion"
+    ],
+    answer: 0,
+    explain: "A guaranteed predecessor of the head makes head-changes ordinary. 'Merge Two Sorted Lists' is the canonical workout for it."
+  }
+]);
+</script>
+</body>
+</html>

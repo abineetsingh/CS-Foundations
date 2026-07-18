@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0023 — Heaps &amp; Priority Queues</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0023 · Phase 2 · ~30 minutes</span>
+  <h1>Heaps &amp; Priority Queues</h1>
+  <p class="lede">Today's skill: maintain "the best element so far" under constant insertion — O(log n) per operation — and own the top-K pattern.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>A heap answers one question relentlessly fast: <em>what's the minimum right now?</em> That single capability powers top-K problems, Dijkstra (Lesson 0032), task schedulers — and beam search, the algorithm decoding every LLM response you've ever read.</p>
+  </div>
+
+  <h2>The structure: a tree that lives in an array</h2>
+  <p>A (min-)heap is a <em>complete</em> binary tree — every level full, last level packed left — with one rule: <strong>parent ≤ children</strong>. Weaker than the BST invariant (no left/right ordering — siblings are strangers), and that weakness is the point: less order costs less to maintain.</p>
+  <p>Completeness means no pointers are needed — the tree packs into an array (Lesson 0003), read level by level:</p>
+  <pre><code>heap = [1, 3, 2, 8, 5, 4]         1          parent of i:  (i − 1) // 2
+                                 / \         children of i: 2i + 1, 2i + 2
+index:  0  1  2  3  4  5        3   2
+                               / \  /        min = heap[0], always. O(1) peek.
+                              8  5 4</code></pre>
+  <h3>The two repairs</h3>
+  <ul>
+    <li><strong>push</strong>: append at the end (keeps completeness), then <em>sift up</em> — swap with parent while smaller. Path length ≤ height = <strong>O(log n)</strong> (complete trees are always balanced — the log is guaranteed, unlike BSTs).</li>
+    <li><strong>pop-min</strong>: take <code>heap[0]</code>, move the last element to the root, then <em>sift down</em> — swap with the smaller child while larger. <strong>O(log n)</strong>.</li>
+  </ul>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-heap"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const h = [], fr = [];
+    function snap(marks, note) {
+      fr.push({ cells: h.map((v, i) => (marks && marks[i]) ? { v: v, cls: marks[i] } : v), note: note });
+    }
+    function push(x) {
+      h.push(x);
+      let i = h.length - 1;
+      const m0 = {}; m0[i] = "good";
+      snap(m0, `push(${x}): append at index ${i} — completeness kept, the tree stays packed. Now sift UP while smaller than the parent.`);
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (h[p] <= h[i]) {
+          const m = {}; m[i] = "hl"; m[p] = "hl";
+          snap(m, `parent h[${p}] = ${h[p]} &#8804; ${h[i]} — heap property holds; stop. (parent of i lives at (i&#8722;1)//2 — the formula IS the tree.)`);
+          break;
+        }
+        const m = {}; m[i] = "bad"; m[p] = "bad";
+        snap(m, `h[${i}] = ${h[i]} &lt; parent h[${p}] = ${h[p]} — SWAP upward.`);
+        const t = h[i]; h[i] = h[p]; h[p] = t; i = p;
+        if (i === 0) { const m2 = {}; m2[0] = "good"; snap(m2, "Reached the root — the new minimum sits at index 0."); }
+      }
+    }
+    [5, 1, 4, 8].forEach(push);
+    snap({ 0: "good" }, `Heap built: [${h.join(", ")}]. The min is at h[0], ALWAYS — O(1) peek. Now pop it.`);
+    h[0] = h.pop();
+    snap({ 0: "bad" }, `pop(): the min (1) leaves; the LAST element (${h[0]}) moves to the root to keep completeness. It's too big — sift DOWN.`);
+    let i = 0;
+    while (true) {
+      const l = 2 * i + 1, r = 2 * i + 2;
+      let s = i;
+      if (l < h.length && h[l] < h[s]) s = l;
+      if (r < h.length && h[r] < h[s]) s = r;
+      if (s === i) {
+        const m = {}; m[i] = "hl";
+        snap(m, "No smaller child — heap repaired. Both repairs walk ONE root-to-leaf path of a complete (always-balanced) tree: O(log n), guaranteed.");
+        break;
+      }
+      const m = {}; m[i] = "bad"; m[s] = "bad";
+      snap(m, `h[${i}] = ${h[i]} &gt; smaller child h[${s}] = ${h[s]} — SWAP down. (children of i: 2i+1, 2i+2.)`);
+      const t = h[i]; h[i] = h[s]; h[s] = t; i = s;
+    }
+    Viz.player("viz-heap", { caption: "heapq mechanics, in the raw array — push 5, 1, 4, 8, then pop the min", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>Python: <code>heapq</code></h2>
+  <pre><code>import heapq
+
+h = []
+heapq.heappush(h, 5)          # O(log n)
+heapq.heappush(h, 1)
+smallest = h[0]               # O(1) peek
+x = heapq.heappop(h)          # O(log n) → 1
+
+heapq.heapify(arr)            # existing list → heap, O(n) (!in place, faster than n pushes)
+
+# heapq is MIN-only. Max-heap: negate on the way in and out.
+heapq.heappush(h, -score)
+best = -heapq.heappop(h)
+
+# Non-numbers: push tuples — compared elementwise (Lesson 0016)
+heapq.heappush(h, (priority, task_id, task))</code></pre>
+
+  <h2>The signature pattern: top-K</h2>
+  <p><em>Find the k largest of n elements.</em> Full sort: O(n log n). Better: keep a <strong>min-heap of size k</strong> — the doorman only needs to know the <em>weakest current member</em>:</p>
+  <pre><code>def k_largest(nums, k):
+    heap = nums[:k]
+    heapq.heapify(heap)                  # O(k)
+    for x in nums[k:]:
+        if x &gt; heap[0]:                  # beats the weakest of the elite?
+            heapq.heapreplace(heap, x)   # evict weakest, admit x — O(log k)
+    return heap</code></pre>
+  <p><strong>O(n log k)</strong> time, <strong>O(k)</strong> space. The counterintuitive detail interviewers probe: k <em>largest</em> uses a <em>min</em>-heap — the root is the eviction candidate. Streaming-friendly too: n never needs to fit in memory. (Also know: <code>heapq.nlargest(k, nums)</code> does this in one call; "kth largest" has an O(n)-average quickselect alternative — name it, offer the heap.)</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p><strong>Beam search</strong> is top-K as a decoding strategy: at each step, expand candidate sequences, score them, and keep only the k best in exactly this heap pattern — BFS (Lesson 0020) with a bouncer. Top-k sampling does it over logits every single token. And vector-database retrieval returns "k nearest neighbors" maintained with — a size-k heap over similarity scores. This lesson is running in production every time you talk to a model.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Heap chapters (properties, push/pop, heapify)</a>.</li>
+    <li>Problems: "Kth Largest Element in a Stream", "Last Stone Weight", "K Closest Points to Origin", then "Kth Largest Element in an Array".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>heapify's O(n) — beating n pushes' O(n log n) — has a slick proof (most nodes sit near the bottom with short sift-downs). Ask Claude Code for it; it's a favorite follow-up question.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0022-tree-problems-toolkit.html">← 0022 Tree Toolkit</a> · Next: <a href="./0024-two-heaps-and-k-way-merge.html">0024 Two Heaps →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Why does finding the k LARGEST elements use a MIN-heap?",
+    options: [
+      "the root exposes the weakest current member — the only one a newcomer needs to beat",
+      "min-heaps are faster than max-heaps in Python",
+      "it doesn't — a max-heap of size k is equivalent here",
+      "the min-heap keeps the k elements in sorted order"
+    ],
+    answer: 0,
+    explain: "The eviction decision is 'does x beat the worst of the elite?' — the worst must be O(1) accessible. A max-heap of size k would hide the eviction candidate at a leaf."
+  },
+  {
+    code: "heap = [1, 3, 2, 8, 5, 4]\n# index:  0  1  2  3  4  5",
+    prompt: "The children of the element at index 1 (value 3) are at indices…",
+    options: ["3 and 4 (values 8, 5)", "2 and 3 (values 2, 8)", "4 and 5 (values 5, 4)", "0 and 2 (values 1, 2)"],
+    answer: 0,
+    explain: "children of i = 2i+1, 2i+2 → 3 and 4. The formula IS the tree — no pointers exist. Check the invariant: 3 ≤ 8 and 3 ≤ 5 ✓."
+  },
+  {
+    prompt: "A heap differs from a BST in that…",
+    options: [
+      "heaps order only parent-vs-descendants; BSTs also order left-vs-right — so heaps can't search, BSTs can",
+      "heaps are always O(n) to insert into",
+      "BSTs fit in arrays; heaps require pointers",
+      "heaps store only numbers"
+    ],
+    answer: 0,
+    explain: "Weaker invariant, cheaper maintenance, narrower power: heaps answer only 'what's the extreme?' Searching a heap for an arbitrary value is O(n). Match the structure to the question asked."
+  },
+  {
+    code: "import heapq\nh = []\nfor x in [5, 1, 4, 1, 8]:\n    heapq.heappush(h, x)\nprint(heapq.heappop(h), heapq.heappop(h))",
+    prompt: "What prints?",
+    options: ["1 1", "1 4", "5 1", "8 5"],
+    answer: 0,
+    explain: "Min-heap pops ascending: 1, then the duplicate 1. (Popping everything = heapsort, O(n log n).)"
+  },
+  {
+    prompt: "Review from 0022: in the diameter pattern, the recursive function returns height while the answer accumulates in a nonlocal variable, because…",
+    options: [
+      "what parents need (height) differs from what the problem wants (best path anywhere)",
+      "Python cannot return two values from a recursive call",
+      "nonlocal variables avoid stack overflow",
+      "heights are integers but diameters are floats"
+    ],
+    answer: 0,
+    explain: "Two channels: the return feeds the recursion's needs; the side channel collects the global best. Recognizing which values flow which way is the tree meta-skill."
+  }
+]);
+</script>
+</body>
+</html>

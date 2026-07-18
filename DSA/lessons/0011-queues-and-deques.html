@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0011 — Queues &amp; Deques</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0011 · Phase 1 · ~20 minutes</span>
+  <h1>Queues &amp; Deques</h1>
+  <p class="lede">Today's skill: process things in arrival order at O(1) per operation — with the right container, because the obvious one is a trap.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Queues are the engine of breadth-first search — which powers a third of all tree and graph problems (Phases 2–3). Learn the container now so BFS lessons can focus on the algorithm.</p>
+  </div>
+
+  <h2>FIFO, and the Python trap</h2>
+  <p>A queue is First-In-First-Out: add at the back, remove from the front. You know from Lesson <a href="./0003-arrays-and-python-lists.html">0003</a> why a plain list fails here: <code>pop(0)</code> shifts everything — O(n) per dequeue, O(n²) to drain a queue. The right tool:</p>
+  <pre><code>from collections import deque
+
+q = deque()
+q.append(x)         # enqueue at back  — O(1)
+x = q.popleft()     # dequeue at front — O(1)
+q.appendleft(x)     # and the front works too — O(1)
+x = q.pop()         # both ends, both O(1): a Double-Ended QUEue</code></pre>
+  <p><code>deque</code> is a doubly-linked structure of blocks — no shifting, ever (<a href="https://wiki.python.org/moin/TimeComplexity">Python Wiki</a>). The catch: <code>q[i]</code> random access is O(n), the exact opposite of a list. Choose by which operations dominate.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-fifo"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const items = ["A", "B", "C", "D"], fr = [];
+    const q = items.slice(), st = items.slice(), qOut = [], sOut = [];
+    fr.push({ rows: [
+        { label: "queue", cells: q.slice(), noIdx: true },
+        { label: "stack", cells: st.slice(), noIdx: true }],
+      note: "The same four arrivals (A first, D last) sit in a queue and a stack. Drain both completely — watch the ORDERS diverge." });
+    for (let k = 0; k < 4; k++) {
+      const qv = q[0], sv = st[st.length - 1];
+      fr.push({ rows: [
+          { label: "queue", cells: q.map((v, i) => i === 0 ? { v: v, cls: "good" } : v), noIdx: true },
+          { label: "stack", cells: st.map((v, i) => i === st.length - 1 ? { v: v, cls: "hl" } : v), noIdx: true }],
+        note: `Queue pops the FRONT (oldest): '${qv}'. Stack pops the TOP (newest): '${sv}'. So far — queue out: ${qOut.join("") + qv}, stack out: ${sOut.join("") + sv}.` });
+      qOut.push(q.shift()); sOut.push(st.pop());
+    }
+    fr.push({ rows: [
+        { label: "q out", cells: qOut.map(v => ({ v: v, cls: "good" })), noIdx: true },
+        { label: "st out", cells: sOut.map(v => ({ v: v, cls: "hl" })), noIdx: true }],
+      note: "ABCD vs DCBA — one pointer's difference, opposite algorithms. This is exactly why swapping BFS's deque for a stack turns it into DFS." });
+    Viz.player("viz-fifo", { caption: "FIFO vs LIFO — identical arrivals, opposite drain orders", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>The BFS preview</h2>
+  <p>Here's the skeleton you'll use dozens of times from Lesson 0020 on — a queue guarantees you explore things in the order you discovered them, level by level:</p>
+  <pre><code>q = deque([start])
+while q:
+    current = q.popleft()      # oldest discovery first
+    for neighbor in expand(current):
+        q.append(neighbor)     # discoveries wait their turn</code></pre>
+  <p>Swap the deque for a stack and the same skeleton becomes depth-first search. The <em>container choice is the algorithm</em> — a beautiful fact you'll prove to yourself in Phase 3.</p>
+
+  <h2>Level 2: the monotonic deque (recognition only)</h2>
+  <p>Lesson 0007 left a loose end: the <em>maximum</em> of a sliding window can't be updated naively when the max leaves. The fix is a deque holding candidate maxima in decreasing order — new elements evict smaller ones from the back (they can never be max again), stale ones fall off the front. O(n) total. You don't need to reproduce it yet; you need to <strong>recognize</strong> "sliding window maximum" as a monotonic-deque problem and know why a plain summary fails.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Inference servers batch incoming generation requests with queues — <strong>continuous batching</strong> (vLLM) is queue management under a latency SLO. Data-loading pipelines are producer/consumer queues feeding the GPU. When a paper says "requests are scheduled FIFO," you now know both the policy and the container.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Queues chapter</a>.</li>
+    <li>Problems: "Implement Stack using Queues" (silly-sounding, genuinely instructive), "Number of Recent Calls".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Curious how deque gets O(1) at both ends without contiguity? Ask Claude Code — the block-linked-list layout is a nice preview of Lesson 0012.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0010-stacks.html">← 0010 Stacks</a> · Next: <a href="./0012-linked-lists-i.html">0012 Linked Lists →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "q = []\nfor task in tasks:        # n tasks\n    q.append(task)\nwhile q:\n    process(q.pop(0))",
+    prompt: "Total time to drain the queue, and the fix?",
+    options: [
+      "O(n²) — replace the list with collections.deque and popleft()",
+      "O(n) — lists pop from the front in O(1)",
+      "O(n log n) — sort the tasks first instead",
+      "O(n²) — replace pop(0) with pop() to fix it"
+    ],
+    answer: 0,
+    explain: "Each pop(0) shifts everything: 1+2+…+n = O(n²). pop() would be O(1) but processes in LIFO order — wrong semantics. deque.popleft() keeps FIFO at O(1)."
+  },
+  {
+    code: "from collections import deque\nq = deque([1, 2, 3])\nq.append(4)\nq.appendleft(0)\nprint(q.popleft(), q.pop())",
+    prompt: "What prints?",
+    options: ["0 4", "1 4", "0 3", "4 0"],
+    answer: 0,
+    explain: "After appends: [0, 1, 2, 3, 4]. popleft takes the front (0), pop takes the back (4)."
+  },
+  {
+    prompt: "You need FIFO processing AND frequent access by position (q[i]). The honest answer is…",
+    options: [
+      "neither list nor deque is ideal — state the trade-off and pick by frequency",
+      "deque — it does everything a list does, faster",
+      "list — pop(0) is fine if n is large",
+      "a dict keyed by position"
+    ],
+    answer: 0,
+    explain: "list: O(1) index, O(n) dequeue. deque: O(1) dequeue, O(n) index. Naming the tension and choosing by dominant operation is exactly what interviewers want to hear."
+  },
+  {
+    prompt: "In the BFS skeleton, replacing popleft() with pop() changes…",
+    options: [
+      "the exploration order from breadth-first to depth-first",
+      "nothing — discovery order is preserved either way",
+      "the complexity from O(n) to O(n²)",
+      "the result only when the input contains duplicates"
+    ],
+    answer: 0,
+    explain: "FIFO explores oldest-first (level by level); LIFO dives into the newest discovery (depth-first). Same code shape, different algorithm — the container is the algorithm."
+  },
+  {
+    prompt: "Review from 0010: 'for each element, find the next greater element to its right' — the O(n) tool is…",
+    options: [
+      "a monotonic stack of unresolved indices",
+      "a prefix-sum array of the elements",
+      "a sliding window with a count dict",
+      "two pointers converging from the ends"
+    ],
+    answer: 0,
+    explain: "Each new element pops (resolves) every smaller waiting element. Push once, pop once → O(n). This tell should now fire automatically."
+  }
+]);
+</script>
+</body>
+</html>

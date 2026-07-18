@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0029 — Grid Graphs</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0029 · Phase 3 · ~25 minutes</span>
+  <h1>Grid Graphs: Islands &amp; Flood Fill</h1>
+  <p class="lede">Today's skill: see a 2-D grid as a graph — no adjacency list needed — and run DFS/BFS over cells.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Grid problems are the most-asked graph questions in practice ("Number of Islands" is a top-5 interview problem, period). They're also gentle: the graph is implicit, so you practice pure traversal without modeling overhead.</p>
+  </div>
+
+  <h2>The reframe: cells are nodes, adjacency is arithmetic</h2>
+  <p>A grid IS a graph: each cell (r, c) is a node; its neighbors are up/down/left/right. No <code>adj</code> dict needed — neighbors are <em>computed</em>:</p>
+  <pre><code>DIRS = [(-1, 0), (1, 0), (0, -1), (0, 1)]      # the four directions
+
+for dr, dc in DIRS:
+    nr, nc = r + dr, c + dc
+    if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols:      # bounds check = edge exists
+        ...visit (nr, nc)...</code></pre>
+  <p>Memorize this idiom — the DIRS list and the bounds check appear in every grid problem. (Diagonals? Extend DIRS to 8. That's the only change.)</p>
+
+  <h2>Worked: Number of Islands</h2>
+  <p><em>Grid of "1" (land) and "0" (water) — count the islands.</em> This is connected components (Lesson <a href="./0028-graphs-traversal.html">0028</a>) wearing a costume: launch a flood from every unvisited land cell; each launch sinks one island:</p>
+  <pre><code>def num_islands(grid):
+    rows, cols = len(grid), len(grid[0])
+
+    def sink(r, c):                                  # DFS flood fill
+        if not (0 &lt;= r &lt; rows and 0 &lt;= c &lt; cols):    # off the map
+            return
+        if grid[r][c] != "1":                        # water, or already sunk
+            return
+        grid[r][c] = "0"                             # mark visited by sinking
+        for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+            sink(r + dr, c + dc)
+
+    count = 0
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == "1":
+                sink(r, c)                           # one launch = one island
+                count += 1
+    return count</code></pre>
+  <p><strong>O(rows × cols)</strong> time — each cell is touched a constant number of times. Two idioms to note: <em>marking in place</em> (mutating the grid replaces the visited set — ask your interviewer if mutation is acceptable; keep a set if not), and <em>checks at the top of the recursion</em> (bounds/water/visited as guard clauses — cleaner than checking before each call, same prunes as Lesson 0027's Word Search).</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-islands"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const g = [["1","1","0","1"],["1","0","0","0"],["0","0","1","1"]];
+    const R = 3, C = 4, fr = [];
+    let count = 0;
+    function snap(marks, note) {
+      fr.push({ cells: g.map((row, r) => row.map((v, c) => {
+        const m = marks && marks[r + "," + c];
+        if (m) return { v: v, cls: m };
+        return { v: v, cls: v === "1" ? "land" : (v === "&#183;" ? "good" : "water") };
+      })), note: note });
+    }
+    function sink(r, c) {
+      if (r < 0 || r >= R || c < 0 || c >= C) return;
+      if (g[r][c] !== "1") return;
+      g[r][c] = "&#183;";
+      const m = {}; m[r + "," + c] = "good";
+      snap(m, `Sink (${r},${c}) — mark in place (the grid IS the visited set), then flood all 4 neighbors.`);
+      sink(r + 1, c); sink(r - 1, c); sink(r, c + 1); sink(r, c - 1);
+    }
+    snap(null, "Land (1) and water (0). Launch a flood from every un-sunk land cell and count the launches — connected components in a costume.");
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+      if (g[r][c] === "1") {
+        count++;
+        const m = {}; m[r + "," + c] = "hl";
+        snap(m, `Un-sunk land at (${r},${c}) — LAUNCH flood #${count}. Everything this flood reaches is ONE island.`);
+        sink(r, c);
+      }
+    }
+    snap(null, `${count} launches = ${count} islands. Each cell sank at most once and was glanced at by &#8804;4 neighbors — O(rows &#215; cols) total, the amortize-over-elements argument yet again.`);
+    Viz.player("viz-islands", { caption: "Number of Islands — flood fill, launch by launch", view: Viz.grid, frames: fr });
+  })();
+  </script>
+
+  <h2>Multi-source BFS: Rotting Oranges</h2>
+  <p><em>Each minute, rotten oranges rot their fresh neighbors — how many minutes until all rot?</em> "Simultaneous spread from many points, measured in time-steps" = <strong>BFS from all sources at once</strong>: seed the queue with <em>every</em> rotten orange, then Lesson 0020's level-size trick — each level is one minute:</p>
+  <pre><code>q = deque(all initially rotten cells)      # multiple sources, one queue
+minutes = 0
+while q:
+    for _ in range(len(q)):                # one level = one simultaneous minute
+        r, c = q.popleft()
+        for each fresh neighbor: rot it, enqueue it
+    if q: minutes += 1</code></pre>
+  <p>The tells: <em>"spreads simultaneously," "minimum time/steps," "nearest X for every cell."</em> DFS answers "connected?"; BFS answers "how far?" — same division of labor as trees, now with multiple starting points allowed.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Flood fill segments images — the classic connected-components-on-pixels algorithm underlying mask tools and old-school vision pipelines. Multi-source BFS computes distance fields (every cell's distance to the nearest source), used in robotics path planning and game AI navigation meshes. And convolution's sliding neighborhood (Lesson 0007) meets its graph twin here: CNNs process exactly this cells-and-neighbors structure, learned instead of hand-coded.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">"Number of Islands", "Rotting Oranges" videos</a>.</li>
+    <li>Problems: "Number of Islands", "Max Area of Island", "Rotting Oranges". Then revisit "Word Search" (Lesson 0027) — notice it's grid-DFS with path-scoped visited.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>One subtlety worth a question: why does islands use permanent marking but Word Search restores cells? If you can answer in one sentence (path-scoped vs. global visited), you've integrated three lessons. Say it to Claude Code to be sure.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0028-graphs-traversal.html">← 0028 Graphs</a> · Next: <a href="./0030-topological-sort.html">0030 Topological Sort →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Grids need no adjacency list because…",
+    options: [
+      "neighbors are computable from coordinates — the edges are implicit in the geometry",
+      "grids are too large for dictionaries",
+      "all grid graphs are acyclic",
+      "the adjacency list would contain only water cells"
+    ],
+    answer: 0,
+    explain: "(r±1, c) and (r, c±1) + a bounds check generate the edges on demand. Implicit graphs (grids, states, word-ladders) are graphs whose edges you compute rather than store."
+  },
+  {
+    prompt: "num_islands is O(rows × cols) even though sink() can recurse deeply, because…",
+    options: [
+      "each cell is sunk at most once — floods never re-process a '0'",
+      "recursion depth is capped at 4 by the directions",
+      "most grids are mostly water",
+      "the outer double loop dominates asymptotically"
+    ],
+    answer: 0,
+    explain: "Sinking is permanent marking: every cell flips 1→0 at most once, and each is examined by ≤4 neighbors afterward. Total work per cell: constant. (Amortize over cells — the argument from Lessons 0008/0010, again.)"
+  },
+  {
+    code: "\"For every cell in a grid of walls and gates,\nfill in its distance to the NEAREST gate.\"",
+    prompt: "Best approach?",
+    options: [
+      "multi-source BFS seeded with ALL gates at once",
+      "BFS from each empty cell until it finds a gate",
+      "DFS from each gate, keeping the minimum",
+      "sort the cells by coordinates and sweep"
+    ],
+    answer: 0,
+    explain: "One BFS from all gates computes every cell's nearest-gate distance in O(cells) — first arrival is provably nearest. Per-cell searches repeat work catastrophically; DFS doesn't do 'nearest' at all."
+  },
+  {
+    code: "def sink(r, c):\n    if grid[r][c] != \"1\":   # ← first line\n        return",
+    prompt: "What's wrong with checking the cell BEFORE the bounds check?",
+    options: [
+      "grid[r][c] crashes (or wraps around!) when r or c is off the board",
+      "nothing — the order of guards is stylistic",
+      "water cells become unreachable",
+      "the recursion loses its base case"
+    ],
+    answer: 0,
+    explain: "grid[-1][c] doesn't crash in Python — it silently wraps to the LAST row (negative indexing) and corrupts the flood. Bounds first, always. A classic silent Python bug interviewers love."
+  },
+  {
+    prompt: "Review from 0028: launching DFS from every unvisited node and counting launches computes…",
+    options: [
+      "the number of connected components",
+      "the shortest path between all pairs",
+      "whether the graph is a tree",
+      "the graph's maximum degree"
+    ],
+    answer: 0,
+    explain: "Each launch exhausts exactly one component. Islands is this very algorithm — cells as nodes, land as edges. Costume changed, algorithm identical."
+  }
+]);
+</script>
+</body>
+</html>

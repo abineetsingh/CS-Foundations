@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0017 — Recursion I</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0017 · Phase 2 · ~30 minutes</span>
+  <h1>Recursion I: The Call Stack Mental Model</h1>
+  <p class="lede">Today's skill: write a recursive function without tracing every call — by trusting the recursion and checking just three things.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Everything in Phase 2 — trees, backtracking, and later dynamic programming — is recursion wearing different hats. Get the mental model right here and those topics become variations; get it wrong and each one feels like starting over. This is the highest-leverage lesson in the course.</p>
+  </div>
+
+  <h2>What actually happens: the call stack</h2>
+  <p>A recursive call is not magic — it's Lesson <a href="./0010-stacks.html">0010</a>'s stack, managed by Python. Each call pushes a <strong>frame</strong> (its own copy of the local variables); returning pops it:</p>
+  <pre><code>def total(arr):
+    if not arr:                      # base case
+        return 0
+    return arr[0] + total(arr[1:])   # recursive case
+
+total([3, 1, 4])
+│ total([3,1,4])  →  3 + ?          ← waits on the stack
+│   total([1,4])  →  1 + ?          ← waits on the stack
+│     total([4])  →  4 + ?          ← waits on the stack
+│       total([]) →  0              ← base case: the floor
+│     total([4])  →  4 + 0 = 4      ← frames pop, answers flow up
+│   total([1,4])  →  1 + 4 = 5
+│ total([3,1,4])  →  3 + 5 = 8</code></pre>
+  <p>Two consequences you must internalize:</p>
+  <ul>
+    <li><strong>Depth = space.</strong> n nested frames means O(n) memory even with no data structures (Lesson 0002's last row). Python caps depth at ~1000 (<code>RecursionError</code>) — mention this in interviews; raise it with <code>sys.setrecursionlimit</code> only knowingly.</li>
+    <li><strong>Each frame has its own locals.</strong> <code>arr</code> in one frame is untouched by the others.</li>
+  </ul>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-callstack"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const fr = [], st = [];
+    function F(topCls, note) {
+      fr.push({ stacks: [{ label: "call stack (grows upward)",
+        items: st.map((s, i) => i === st.length - 1 ? { v: s, cls: topCls } : s) }], note: note });
+    }
+    st.push("total([3,1,4]) &#8594; 3 + ?");
+    F("hl", "Call total([3,1,4]). It needs total([1,4]) before it can finish — its frame WAITS on the stack.");
+    st.push("total([1,4]) &#8594; 1 + ?");
+    F("hl", "Push total([1,4]). Each frame owns its own arr — the frames below are untouched.");
+    st.push("total([4]) &#8594; 4 + ?");
+    F("hl", "Push total([4]). Three live frames — this depth IS the O(n) space cost, visible.");
+    st.push("total([]) &#8594; 0");
+    F("good", "BASE CASE: the empty list answers directly — 0. The descent has a floor. Peak depth: 4 frames.");
+    st.pop(); st[st.length - 1] = "total([4]) &#8594; 4 + 0 = 4";
+    F("good", "total([]) returns 0 and its frame POPS. total([4]) resumes: 4 + 0 = 4.");
+    st.pop(); st[st.length - 1] = "total([1,4]) &#8594; 1 + 4 = 5";
+    F("good", "Pop. total([1,4]) resumes: 1 + 4 = 5. Answers flow UP as the stack unwinds.");
+    st.pop(); st[st.length - 1] = "total([3,1,4]) &#8594; 3 + 5 = 8";
+    F("good", "Pop. The original call resumes: 3 + 5 = 8.");
+    st.pop();
+    fr.push({ stacks: [{ label: "call stack", items: [] }],
+      note: "Stack empty — answer 8. You just watched Lesson 0010's stack run Python's recursion. Depth = space; the ~1000-frame limit is a cap on THIS picture." });
+    Viz.player("viz-callstack", { caption: "the call stack running total([3, 1, 4])", view: Viz.stack, frames: fr });
+  })();
+  </script>
+
+  <h2>The discipline: three checks, then trust</h2>
+  <p>Beginners trace every call and drown. Professionals verify three things and <em>stop</em>:</p>
+  <ol>
+    <li><strong>Base case</strong>: the smallest input, answered directly. (<code>not arr → 0</code>)</li>
+    <li><strong>The leap of faith</strong>: assume the recursive call returns the right answer <em>for its smaller input</em>. Don't peek inside.</li>
+    <li><strong>The combine step</strong>: given that assumption, is this frame's answer right? (<code>arr[0] + total(rest)</code> ✓) And does every call <em>shrink</em> toward the base case? ✓</li>
+  </ol>
+  <p>This is induction, operationalized. The leap of faith isn't a trick to feel better — it's mathematically valid, and it's the <em>only</em> way to reason about the branching recursion coming in Lessons 0018–0027, where tracing is physically impossible.</p>
+
+  <h2>Second example — checks in action</h2>
+  <pre><code>def reverse_string(s):
+    if len(s) &lt;= 1:                       # 1. base: nothing to reverse
+        return s
+    return reverse_string(s[1:]) + s[0]   # 2. trust: s[1:] comes back reversed
+                                          # 3. combine: reversed rest + first char ✓</code></pre>
+  <p>Correct — but note the honest costs: each frame's slice copies (Lesson 0003), so this is O(n²) time and O(n²) space across frames. An index parameter (<code>def helper(i)</code>) avoids the copies. Recursion changes <em>how you reason</em>, not what things cost — always still ask the Big-O question.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Backpropagation is a recursion: the gradient at any node is computed from the gradients of the nodes above it — base case: the loss, whose gradient is 1. Autograd engines literally maintain this as a stack-ordered traversal (you'll formalize it as topological order in Lesson 0030). The leap of faith is how you should read backprop equations too: trust the upstream gradient, verify only the local step.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Recursion chapter (factorial, Fibonacci)</a>.</li>
+    <li>Drill (retrieval, not problems): write from scratch — <code>factorial(n)</code>, <code>sum_digits(n)</code>, <code>countdown(n)</code> printing n..1 then 1..n (order teaches pre- vs post-work). Then explain the three checks aloud for each.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>If the leap of faith feels like cheating, that's normal and worth resolving NOW — tell Claude Code, and it'll walk the induction argument until it feels earned. Do not proceed to trees with this unresolved.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0016-sorting.html">← 0016 Sorting</a> · Next: <a href="./0018-recursion-ii.html">0018 Divide &amp; Conquer →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "def mystery(n):\n    if n == 0:\n        return\n    print(n)\n    mystery(n - 1)\n    print(n)",
+    prompt: "What does mystery(3) print?",
+    options: ["3 2 1 1 2 3", "3 2 1 3 2 1", "1 2 3 3 2 1", "3 2 1 only"],
+    answer: 0,
+    explain: "Pre-call prints happen on the way DOWN (3,2,1); post-call prints happen as frames pop on the way UP (1,2,3). Where work sits relative to the call is everything — this becomes pre-order vs post-order in trees."
+  },
+  {
+    code: "def total(arr):\n    if not arr:\n        return 0\n    return arr[0] + total(arr[1:])",
+    prompt: "Auxiliary space complexity (count the frames AND the slices)?",
+    options: ["O(n²) — n frames, each holding an O(n) slice copy", "O(n) — n frames of O(1) each", "O(1) — tail calls are optimized away", "O(log n) — the input halves per call"],
+    answer: 0,
+    explain: "Each arr[1:] copies (Lesson 0003), and n live frames each hold one. Passing an index instead gives O(n) frames of O(1). Python does NOT optimize tail calls."
+  },
+  {
+    prompt: "The 'leap of faith' is valid reasoning because…",
+    options: [
+      "it is induction: correct base + correct step for size k−1 → k implies correctness for all n",
+      "Python guarantees inner calls finish before outer ones",
+      "tracing would give the same answer, just slower",
+      "recursive calls are independent, so errors cannot propagate"
+    ],
+    answer: 0,
+    explain: "Base case = induction base; combine step = inductive step. You're not skipping the proof — you're doing it properly, once, instead of unrolling it per call."
+  },
+  {
+    code: "def count_down(n):\n    print(n)\n    count_down(n - 1)",
+    prompt: "What happens when you call count_down(5)?",
+    options: [
+      "prints 5, 4, 3, … into negatives until RecursionError",
+      "prints 5 4 3 2 1 and stops at zero",
+      "infinite loop with no output",
+      "SyntaxError — a return is required"
+    ],
+    answer: 0,
+    explain: "No base case → nothing ever stops the descent; Python kills it at the ~1000-frame limit. Check #1 must exist and be REACHED by every path."
+  },
+  {
+    prompt: "Review from 0016: you sort, then answer needs the elements' ORIGINAL indices. The standard fix is…",
+    options: [
+      "sort (value, index) pairs so indices travel with their values",
+      "sort a copy and scan the original for each value",
+      "avoid sorting — original order can never be recovered",
+      "store the array in a set before sorting"
+    ],
+    answer: 0,
+    explain: "Decorate-sort-use: sorted(enumerate(arr), key=lambda p: p[1]). Scanning per value is O(n²) and breaks on duplicates."
+  }
+]);
+</script>
+</body>
+</html>

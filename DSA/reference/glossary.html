@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary — DSA Practice</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Reference · DSA Practice</span>
+  <h1>Glossary</h1>
+  <p class="lede">The course's nomenclature, one line each. Terms are used consistently in every lesson; if a definition here surprises you, revisit its lesson.</p>
+
+  <table>
+    <tr><th>Term</th><th>Meaning</th><th>Lesson</th></tr>
+    <tr><td><strong>Big-O</strong></td><td>How work grows as input grows; constants and lower-order terms dropped.</td><td>0001</td></tr>
+    <tr><td><strong>auxiliary space</strong></td><td>Extra memory beyond the input; what "space complexity" means by default.</td><td>0002</td></tr>
+    <tr><td><strong>in place</strong></td><td>O(1) auxiliary space; the input is mutated rather than copied.</td><td>0002</td></tr>
+    <tr><td><strong>amortized</strong></td><td>Cost averaged over a sequence of operations; rare expensive steps spread thin (append's resize).</td><td>0003</td></tr>
+    <tr><td><strong>dynamic array</strong></td><td>Array with spare capacity that doubles when full — Python's list.</td><td>0003</td></tr>
+    <tr><td><strong>immutable / hashable</strong></td><td>Can't change after creation / has a stable hash — immutability is why strings and tuples can be dict keys.</td><td>0004–5</td></tr>
+    <tr><td><strong>hash table</strong></td><td>Array indexed by hash(key); O(1) average lookup/insert/delete. Python's dict and set.</td><td>0005</td></tr>
+    <tr><td><strong>collision</strong></td><td>Two keys landing in one slot; handled internally, cause of the "average" caveat.</td><td>0005</td></tr>
+    <tr><td><strong>invariant</strong></td><td>A property kept true at every step; the tool for writing correct loops (binary search, windows, BSTs).</td><td>0008, 0014</td></tr>
+    <tr><td><strong>monotonic stack/deque</strong></td><td>Stack/deque kept sorted by evicting on arrival; solves next-greater and window-max in O(n).</td><td>0010–11</td></tr>
+    <tr><td><strong>dummy node</strong></td><td>Fake node planted before a linked list's head so head-changes aren't special cases.</td><td>0012</td></tr>
+    <tr><td><strong>fast/slow pointers</strong></td><td>Two pointers at different speeds; finds middles and detects cycles (Floyd).</td><td>0013</td></tr>
+    <tr><td><strong>answer-space search</strong></td><td>Binary search over candidate answers using a monotonic yes/no feasibility check.</td><td>0015</td></tr>
+    <tr><td><strong>stable sort</strong></td><td>Equal elements keep their original order (Timsort is; enables multi-key sorting).</td><td>0016</td></tr>
+    <tr><td><strong>base case / leap of faith</strong></td><td>Recursion's floor / trusting recursive calls on smaller inputs — induction, operationalized.</td><td>0017</td></tr>
+    <tr><td><strong>divide &amp; conquer</strong></td><td>Split, solve halves by trust, combine; priced via work-per-level × levels.</td><td>0018</td></tr>
+    <tr><td><strong>pre/in/post-order</strong></td><td>DFS variants by when the node is handled: before / between / after its subtrees.</td><td>0019</td></tr>
+    <tr><td><strong>level-order (BFS)</strong></td><td>Queue-driven traversal by distance; the level-size trick processes levels as units.</td><td>0020</td></tr>
+    <tr><td><strong>BST invariant</strong></td><td>Left subtree &lt; node &lt; right subtree, at every node, over WHOLE subtrees.</td><td>0021</td></tr>
+    <tr><td><strong>O(h)</strong></td><td>Tree-op cost in height: log n balanced, n degenerate — always state both.</td><td>0021</td></tr>
+    <tr><td><strong>heap</strong></td><td>Complete tree in an array; parent ≤ children; O(1) peek-min, O(log n) push/pop.</td><td>0023</td></tr>
+    <tr><td><strong>top-K pattern</strong></td><td>Min-heap of size k holding the current elite; O(n log k).</td><td>0023</td></tr>
+    <tr><td><strong>trie</strong></td><td>Tree whose paths spell prefixes; O(L) ops; the structure for "starts with".</td><td>0025</td></tr>
+    <tr><td><strong>backtracking</strong></td><td>DFS over a decision tree with choose → explore → un-choose state restoration.</td><td>0026</td></tr>
+    <tr><td><strong>pruning</strong></td><td>Rejecting a partial path early, discarding its whole subtree unexplored.</td><td>0027</td></tr>
+    <tr><td><strong>adjacency list</strong></td><td>node → list of neighbors; O(V+E) space; the default graph representation.</td><td>0028</td></tr>
+    <tr><td><strong>visited set</strong></td><td>What makes graph traversal terminate; permanent (traversal) vs path-scoped (backtracking).</td><td>0028–29</td></tr>
+    <tr><td><strong>DAG</strong></td><td>Directed acyclic graph — exactly the graphs that can be topologically ordered.</td><td>0030</td></tr>
+    <tr><td><strong>topological order</strong></td><td>Node ordering where every edge points forward; Kahn's = repeatedly take in-degree-0 nodes.</td><td>0030</td></tr>
+    <tr><td><strong>union-find (DSU)</strong></td><td>Forest tracking groups under merges; path compression + rank → O(α) ≈ constant.</td><td>0031</td></tr>
+    <tr><td><strong>relaxation / finalization</strong></td><td>Improving a distance estimate / Dijkstra's pop-time commitment (safe iff weights ≥ 0).</td><td>0032</td></tr>
+    <tr><td><strong>MST</strong></td><td>Cheapest edge set connecting all nodes; Kruskal = sort + union-find; cut argument proves greed.</td><td>0033</td></tr>
+    <tr><td><strong>overlapping subproblems</strong></td><td>The same subproblem recurring — the property that makes caching profitable; DP's diagnostic.</td><td>0034</td></tr>
+    <tr><td><strong>memoization / tabulation</strong></td><td>Top-down cache on recursion / bottom-up table filled in dependency order.</td><td>0034–35</td></tr>
+    <tr><td><strong>state / transition</strong></td><td>What identifies a subproblem / the menu of last moves relating states — DP questions 1 &amp; 2.</td><td>0034</td></tr>
+    <tr><td><strong>rolling variables</strong></td><td>Collapsing a DP table to O(1) when the transition looks back a bounded distance.</td><td>0035</td></tr>
+    <tr><td><strong>pseudo-polynomial</strong></td><td>Polynomial in a numeric VALUE (like capacity W), not the input's size — knapsack's fine print.</td><td>0037</td></tr>
+    <tr><td><strong>exchange argument</strong></td><td>Greedy proof: any optimal solution can be morphed into the greedy one at no cost.</td><td>0038</td></tr>
+    <tr><td><strong>sweep line</strong></td><td>Walk sorted event points (+1 start, −1 end) tracking a running level; intervals' engine.</td><td>0039</td></tr>
+    <tr><td><strong>bitmask</strong></td><td>Integer used as a set of booleans; subsets of n items ↔ integers 0..2ⁿ−1.</td><td>0040</td></tr>
+    <tr><td><strong>the six steps</strong></td><td>Clarify → example → brute force → optimize → code → verify; the interview protocol.</td><td>0041</td></tr>
+    <tr><td><strong>composition (design)</strong></td><td>Pairing structures so each covers the other's weak op, kept in sync (map + linked list = LRU).</td><td>0043</td></tr>
+  </table>
+
+  <div class="lesson-footer">
+    Companions: <a href="./big-o-cheatsheet.html">Big-O</a> · <a href="./patterns-cheatsheet.html">Patterns</a> · <a href="./python-toolkit.html">Python toolkit</a>
+  </div>
+</main>
+</body>
+</html>

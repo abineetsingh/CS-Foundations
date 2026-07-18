@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0002 — Space Complexity</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0002 · Phase 0 · ~20 minutes</span>
+  <h1>Space Complexity: The Memory Side of Big-O</h1>
+  <p class="lede">Today's skill: state how much <em>extra memory</em> a function uses, using the same Big-O vocabulary you learned for time.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Interviewers always ask for both: <em>"time and space complexity?"</em> Answering only time is the most common beginner tell. The good news: you already know the vocabulary — same classes, different resource.</p>
+  </div>
+
+  <h2>What counts as "space"</h2>
+  <p>Space complexity measures the <strong>extra</strong> memory your algorithm allocates, as a function of input size n. Two conventions matter:</p>
+  <ul>
+    <li><strong>Auxiliary space</strong> — memory beyond the input itself. This is what interviewers mean by default.</li>
+    <li>The input doesn't count against you; a new copy of it does.</li>
+  </ul>
+
+  <h2>Reading space from code</h2>
+  <table>
+    <tr><th>You allocate…</th><th>Space</th></tr>
+    <tr><td>A few variables (<code>count</code>, <code>best</code>, <code>i</code>)</td><td><code>O(1)</code></td></tr>
+    <tr><td>A list/dict/set that can grow to n entries</td><td><code>O(n)</code></td></tr>
+    <tr><td>A slice or copy of the input (<code>arr[:]</code>, <code>sorted(arr)</code>)</td><td><code>O(n)</code></td></tr>
+    <tr><td>An n × n grid or table</td><td><code>O(n²)</code></td></tr>
+    <tr><td>Recursive calls d levels deep (call stack)</td><td><code>O(d)</code> — more in Lesson 0017</td></tr>
+  </table>
+
+  <h3>Example 1 — O(1) space</h3>
+  <pre><code>def reverse_in_place(arr):
+    left, right = 0, len(arr) - 1
+    while left &lt; right:
+        arr[left], arr[right] = arr[right], arr[left]
+        left += 1
+        right -= 1</code></pre>
+  <p>Time O(n) — we touch every element. Space <strong>O(1)</strong> — two integer variables, no matter how long the list. "In place" is interview shorthand for O(1) extra space.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-rev"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const a = [3, 1, 4, 1, 5];
+    const fr = [];
+    let l = 0, r = a.length - 1;
+    fr.push({ cells: a.slice(), ptrs: { 0: "L", 4: "R" },
+      note: "Two index variables — the ONLY extra memory, no matter how long the array." });
+    while (l < r) {
+      const before = a.slice();
+      fr.push({ cells: before.map((v, i) => (i === l || i === r) ? { v: v, cls: "hl" } : v),
+        ptrs: { [l]: "L", [r]: "R" },
+        note: `Swap a[${l}] &#8596; a[${r}] — inside the existing array, no new list allocated.` });
+      const t = a[l]; a[l] = a[r]; a[r] = t;
+      fr.push({ cells: a.map((v, i) => (i === l || i === r) ? { v: v, cls: "good" } : v),
+        ptrs: { [l]: "L", [r]: "R" },
+        note: "Swapped. Both pointers step inward — the two variables just get new numbers." });
+      l++; r--;
+    }
+    fr.push({ cells: a.map(v => ({ v: v, cls: "good" })),
+      note: "Reversed: O(n) time, O(1) auxiliary space. The copy version does the same job but allocates a whole second array — O(n) space. Same output, different memory bill." });
+    Viz.player("viz-rev", { caption: "reverse_in_place — watch the memory NOT grow", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h3>Example 2 — O(n) space</h3>
+  <pre><code>def reversed_copy(arr):
+    result = []
+    for x in arr:
+        result.insert(0, x)   # (also slow — why? see quiz)
+    return result</code></pre>
+  <p>Same job, but <code>result</code> grows to n elements: space <strong>O(n)</strong>.</p>
+
+  <h2>The trade-off — spending space to buy time</h2>
+  <p>This is the deepest idea in the lesson. Recall <code>has_duplicate</code> from <a href="./0001-big-o-reading-the-cost-of-code.html">Lesson 0001</a>: comparing all pairs took O(n²) time and O(1) space. Watch what happens when we spend memory:</p>
+  <pre><code>def has_duplicate(arr):
+    seen = set()
+    for x in arr:
+        if x in seen:          # O(1) average — Lesson 0005 explains why
+            return True
+        seen.add(x)
+    return False</code></pre>
+  <p>Now: O(n) time, O(n) space. We <strong>bought a whole complexity class of time with memory</strong>. Most interview "optimizations" are exactly this trade, made deliberately. When you propose it, say the trade out loud.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>The time↔space trade runs all through ML systems. A <strong>KV cache</strong> spends O(n) memory per sequence to avoid recomputing attention keys/values each token — memory buying time. <strong>Gradient checkpointing</strong> is the reverse trade: recompute activations during backprop to fit bigger models in GPU memory — time buying memory. Same currency exchange you just learned.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <p>For each snippet, pick the <strong>auxiliary space</strong> complexity (question 5 reviews time).</p>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: the "RAM model" and complexity chapters of <a href="https://neetcode.io/courses/dsa-for-beginners/0">NeetCode — DSA for Beginners</a> cover space alongside time.</li>
+    <li>Keep the <a href="../reference/big-o-cheatsheet.html">Big-O cheat sheet</a> at hand — the interview-phrasing section now applies fully: always state both time <em>and</em> space.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Unclear why the input doesn't count, or why a set is O(1) to check? Ask Claude Code — Lesson 0005 will prove the set claim properly.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0001-big-o-reading-the-cost-of-code.html">← 0001 Big-O</a> · Next: <a href="./0003-arrays-and-python-lists.html">0003 Arrays &amp; Python Lists →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "def count_positives(arr):\n    count = 0\n    for x in arr:\n        if x > 0:\n            count += 1\n    return count",
+    prompt: "Auxiliary space complexity?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 0,
+    explain: "One integer variable regardless of input size. Time is O(n), space is O(1) — they're independent axes."
+  },
+  {
+    code: "def doubled(arr):\n    return [x * 2 for x in arr]",
+    prompt: "Auxiliary space complexity?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 2,
+    explain: "The comprehension builds a brand-new n-element list: O(n) extra memory."
+  },
+  {
+    code: "def unique_count(arr):\n    seen = set()\n    for x in arr:\n        seen.add(x)\n    return len(seen)",
+    prompt: "Auxiliary space complexity in the worst case?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 2,
+    explain: "If all elements are distinct, the set grows to n entries. Worst-case space assumes the least favorable input."
+  },
+  {
+    code: "def multiplication_table(n):\n    table = []\n    for i in range(n):\n        row = []\n        for j in range(n):\n            row.append(i * j)\n        table.append(row)\n    return table",
+    prompt: "Auxiliary space complexity?",
+    options: ["O(1)", "O(n)", "O(n log n)", "O(n²)"],
+    answer: 3,
+    explain: "n rows of n entries each: n² cells stored. Time is also O(n²) — building n² things takes n² steps."
+  },
+  {
+    code: "def reversed_copy(arr):\n    result = []\n    for x in arr:\n        result.insert(0, x)\n    return result",
+    prompt: "Review from 0001: what is this function's TIME complexity?",
+    options: ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
+    answer: 2,
+    explain: "insert(0, …) shifts every existing element — O(n) — and we do it n times: O(n²). Lesson 0003 shows exactly why the shift happens."
+  }
+]);
+</script>
+</body>
+</html>

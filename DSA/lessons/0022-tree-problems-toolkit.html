@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0022 — The Tree Problems Toolkit</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0022 · Phase 2 · ~30 minutes</span>
+  <h1>The Tree Problems Toolkit</h1>
+  <p class="lede">Today's skill: solve the classic medium tree questions — diameter, balance, lowest common ancestor — by systematizing one meta-pattern.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>This is a consolidation lesson: nothing new, everything combined. The pattern here — <em>post-order, return what the parent needs</em> — dissolves most medium tree problems on sight. That "on sight" feeling is your mission's pattern-recognition goal, achieved for one whole category.</p>
+  </div>
+
+  <h2>The meta-pattern, stated once</h2>
+  <ol>
+    <li>Decide <strong>what each subtree must report</strong> to its parent (a number, a boolean, a tuple).</li>
+    <li>Write the base case for the empty tree.</li>
+    <li>Recurse on both children (trust), <strong>combine</strong>, and — when the problem's answer isn't the root's report — update a nonlocal best as a side effect.</li>
+  </ol>
+  <p>Step 3's distinction is the key insight of this lesson: <em>the value flowing up the tree is often not the answer being sought.</em></p>
+
+  <h2>Worked: Diameter (the archetype)</h2>
+  <p><em>Longest path between any two nodes.</em> The longest path through a given node = left height + right height. But the best path might be in a subtree, not through the root — so heights flow up, while the answer is collected on the side:</p>
+  <pre><code>def diameter(root):
+    best = 0
+    def height(node):
+        nonlocal best
+        if not node:
+            return 0
+        left  = height(node.left)          # trust
+        right = height(node.right)
+        best = max(best, left + right)     # answer: path THROUGH this node
+        return 1 + max(left, right)        # report: height, what parents need
+    height(root)
+    return best</code></pre>
+  <p>One O(n) pass. Notice the two channels: <code>return</code> feeds the recursion; <code>best</code> collects the prize. "Longest path", "max path sum", "count good nodes" — all this exact shape.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-diam"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function n(v, l, r) { return { id: String(v), v: v, children: [l || null, r || null] }; }
+    const root = n(1, n(2, n(4, n(8)), n(5)), n(3));
+    const view = Viz.tree({ root: root, gapX: 48, gapY: 52 });
+    const fr = [{ note: "Post-order: every node computes AFTER its children. Badge = the height it reports UP; best = longest path (in edges) collected on the side." }];
+    const badge = {}, done = {};
+    let best = 0;
+    (function h(nd) {
+      if (!nd) return 0;
+      const L = h(nd.children[0]), R = h(nd.children[1]);
+      const through = L + R, nb = through > best;
+      best = Math.max(best, through);
+      badge[nd.id] = "h=" + (1 + Math.max(L, R));
+      const cur = {}; cur[nd.id] = nb ? "good" : "hl";
+      fr.push({ badge: Object.assign({}, badge), hl: Object.assign({}, done, cur),
+        note: `Node ${nd.v}: children report heights ${L} and ${R} (the leap of faith). Path THROUGH here = ${L}+${R} = ${through} edges${nb ? ` &#8594; <strong>best = ${best}</strong>` : ` (best stays ${best})`}. Report up: height ${1 + Math.max(L, R)}.` });
+      done[nd.id] = "good";
+      return 1 + Math.max(L, R);
+    })(root);
+    fr.push({ badge: Object.assign({}, badge), hl: Object.assign({}, done),
+      ehl: { "8-4": "good", "4-2": "good", "2-1": "good", "1-3": "good" },
+      note: `Diameter = ${best}: the path 8&#8211;4&#8211;2&#8211;1&#8211;3. Heights flowed up the RETURN channel; the answer accumulated in the SIDE channel — two channels, two jobs.` });
+    Viz.player("viz-diam", { caption: "diameter — post-order heights up, best collected on the side", view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>Worked: Balanced? (enriching the report)</h2>
+  <p><em>Is every node's subtree-height difference ≤ 1?</em> The parent needs height <em>and</em> balance — so report both (here, −1 as a "broken" sentinel):</p>
+  <pre><code>def is_balanced(root):
+    def check(node):                  # returns height, or -1 if unbalanced below
+        if not node: return 0
+        left = check(node.left)
+        right = check(node.right)
+        if left == -1 or right == -1 or abs(left - right) &gt; 1:
+            return -1                 # short-circuit failure upward
+        return 1 + max(left, right)
+    return check(root) != -1</code></pre>
+  <p>When the parent needs more than one fact, widen the report — a tuple or sentinel. Asking "what does the parent need to know?" <em>first</em> is what turns a blank stare into a plan.</p>
+
+  <h2>Worked: Lowest Common Ancestor (reports meet)</h2>
+  <pre><code>def lca(node, p, q):
+    if not node or node is p or node is q:
+        return node                       # found one (or dead end)
+    left  = lca(node.left,  p, q)
+    right = lca(node.right, p, q)
+    if left and right:                    # p and q split across my subtrees:
+        return node                       #   I am the meeting point
+    return left or right                  # both on one side (or neither)</code></pre>
+  <p>Read it with the leap of faith: each side reports "the LCA if both targets are down here, else whichever target is down here, else None." The first node where both sides report something is where the paths converge. Three checks confirm it; tracing would take a page. (BST version: use the invariant — walk from the root until p and q split around you. O(h), no recursion needed.)</p>
+
+  <h2>The toolkit, tabulated</h2>
+  <table>
+    <tr><th>Problem</th><th>Report up</th><th>Side channel?</th></tr>
+    <tr><td>Max depth</td><td>height</td><td>—</td></tr>
+    <tr><td>Diameter / max path sum</td><td>height / best downward sum</td><td>best path through node</td></tr>
+    <tr><td>Balanced</td><td>height + validity (sentinel)</td><td>—</td></tr>
+    <tr><td>Validate BST</td><td colspan="2">invert the flow: pass (lo, hi) bounds DOWN (Lesson 0021)</td></tr>
+    <tr><td>LCA</td><td>found-target / LCA</td><td>—</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>"Aggregate child reports at each node" is message passing — the computational heart of graph neural networks, and of how MCTS backs value estimates up the game tree in AlphaZero-style agents. The two-channel trick (returned value ≠ collected answer) mirrors how backprop accumulates parameter gradients as a side effect while the chain rule's messages flow through.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">"Diameter of Binary Tree", "Lowest Common Ancestor" videos</a>.</li>
+    <li>Problems: "Diameter of Binary Tree", "Balanced Binary Tree", "Lowest Common Ancestor of a BST", then the boss: "Binary Tree Maximum Path Sum" (hard — diameter's shape with values; a genuine milestone if it falls).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Before each problem this week, say your step-1 answer aloud — "each subtree reports ___" — before writing code. If you can't fill the blank, that's the conversation to bring to Claude Code.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0021-binary-search-trees.html">← 0021 BSTs</a> · Next: <a href="./0023-heaps.html">0023 Heaps →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "In the diameter solution, why does height() return 1 + max(left, right) instead of the diameter?",
+    options: [
+      "parents extend one downward path — they need height; the diameter is collected separately",
+      "the diameter cannot be computed recursively",
+      "returning the diameter would double-count the root",
+      "heights are cheaper to compute than diameters"
+    ],
+    answer: 0,
+    explain: "A parent's candidate path uses only its child's HEIGHT (one leg). The best full path (left+right) can't be extended upward — so it exits via the side channel. Two channels, two jobs."
+  },
+  {
+    prompt: "'What does the parent need to know from each subtree?' For 'is this tree symmetric?', a workable answer is…",
+    options: [
+      "compare left and right subtrees as mirror images: outer-with-outer, inner-with-inner",
+      "each subtree reports its height; equal heights = symmetric",
+      "each subtree reports its node count; equal counts = symmetric",
+      "each subtree reports its maximum value"
+    ],
+    answer: 0,
+    explain: "Symmetry is a PAIRED property — recurse on two nodes at once: mirror(a.left, b.right) and mirror(a.right, b.left). Heights and counts can match on asymmetric trees."
+  },
+  {
+    code: "if left and right:\n    return node\nreturn left or right",
+    prompt: "In LCA, what does 'return left or right' handle?",
+    options: [
+      "both targets are in ONE subtree (or none here) — pass the finding upward",
+      "the case where node itself is p or q",
+      "ties when p and q have equal depth",
+      "unbalanced trees, where one recursion returns early"
+    ],
+    answer: 0,
+    explain: "If only one side reports, both targets (or the one found so far) are that way — relay it up unchanged. The split (left AND right) happens at exactly one node: the LCA."
+  },
+  {
+    code: "def count_good(node, path_max):\n    if not node: return 0\n    good = 1 if node.val >= path_max else 0\n    m = max(path_max, node.val)\n    return good + count_good(node.left, m) + count_good(node.right, m)",
+    prompt: "This 'count nodes ≥ everything above them' solution passes path_max DOWN. Which lesson's pattern is that?",
+    options: [
+      "0021's — inherited constraints flow down as parameters, like BST validation windows",
+      "0020's — level-order state must be threaded through a queue",
+      "0018's — divide and conquer requires splitting the input",
+      "0013's — fast/slow pointers generalized to trees"
+    ],
+    answer: 0,
+    explain: "Ancestor context (the max seen so far) can't be computed from below — it must be inherited. Down-flowing parameters and up-flowing reports are the two directions; hard problems often use both."
+  },
+  {
+    prompt: "Review from 0021: for a BST, the LCA of p and q (both present, p < q) is the first node where…",
+    options: [
+      "p ≤ node.val ≤ q — the values split around it",
+      "the node's height equals |depth(p) − depth(q)|",
+      "the in-order traversal visits p immediately before q",
+      "both children are non-empty"
+    ],
+    answer: 0,
+    explain: "Walking from the root: while both targets are on the same side, descend that way; the first node 'between' them is the split — O(h), no recursion, courtesy of the invariant."
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0003 — Arrays &amp; Python Lists Under the Hood</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0003 · Phase 0 · ~25 minutes</span>
+  <h1>Arrays &amp; Python Lists Under the Hood</h1>
+  <p class="lede">Today's skill: predict which list operations are O(1) and which are O(n) — by understanding what a Python list actually is.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Arrays are the substrate of everything else — strings, stacks, heaps, hash tables, and (in ML) tensors are all arrays underneath. Interviewers expect you to <em>know</em>, not guess, that <code>append</code> is cheap and <code>insert(0, …)</code> is not.</p>
+  </div>
+
+  <h2>An array is contiguous memory</h2>
+  <p>An array stores its elements side by side in one block of memory. That single fact explains everything:</p>
+  <pre><code>index:    0     1     2     3     4
+        ┌─────┬─────┬─────┬─────┬─────┐
+memory: │ 17  │ 42  │  8  │ 99  │  3  │
+        └─────┴─────┴─────┴─────┴─────┘</code></pre>
+  <ul>
+    <li><strong>Index access is O(1)</strong>: the machine computes <code>address = start + i × slot_size</code> — one multiplication, no searching. <code>arr[500_000]</code> costs the same as <code>arr[0]</code>.</li>
+    <li><strong>Middle insertion is O(n)</strong>: to insert at position 0, every element must shift one slot right to keep the block contiguous. n elements → n moves.</li>
+    <li><strong>Search by value is O(n)</strong>: contiguity tells you nothing about <em>where</em> a value lives, so <code>x in arr</code> scans front to back.</li>
+  </ul>
+
+  <h2>Static vs. dynamic arrays</h2>
+  <p>A <strong>static array</strong> (C, Java's <code>int[]</code>) has fixed capacity, chosen at creation. A <strong>dynamic array</strong> — which is what a Python <code>list</code> is — wraps a static array and resizes it when full:</p>
+  <ol>
+    <li>Keep a block bigger than needed (<em>capacity</em> &gt; <em>length</em>).</li>
+    <li><code>append</code> writes into the spare slot: O(1).</li>
+    <li>When full, allocate a new block roughly <strong>double</strong> the size, copy everything over (O(n)), continue.</li>
+  </ol>
+  <p>The occasional O(n) copy is rare enough that averaged over many appends, each costs O(1) — called <strong>amortized O(1)</strong>. In an interview, say: <em>"append is amortized O(1)."</em> That word signals you know about the resize.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-append"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function row(vals, cap, copied, newIdx) {
+      const cells = [];
+      for (let i = 0; i < cap; i++) {
+        if (i < vals.length) {
+          const cls = (copied && copied.indexOf(i) !== -1) ? "hl" : (i === newIdx ? "good" : null);
+          cells.push(cls ? { v: vals[i], cls: cls } : vals[i]);
+        } else cells.push({ v: "", cls: "ghost" });
+      }
+      return cells;
+    }
+    const fr = [
+      { cells: row([1], 2, null, 0),
+        note: "capacity 2, length 1 — dashed cells are allocated-but-unused slots. append(1) wrote into spare space: O(1)." },
+      { cells: row([1, 2], 2, null, 1),
+        note: "append(2): O(1) again. But length now equals capacity — the block is FULL." },
+      { cells: row([1, 2], 4, [0, 1], null),
+        note: "append(3) can't fit &#8594; allocate a NEW block of DOUBLE size (4) and copy everything (red): O(n), this one time." },
+      { cells: row([1, 2, 3], 4, null, 2),
+        note: "…then write 3. That expensive resize pre-paid for more cheap appends." },
+      { cells: row([1, 2, 3, 4], 4, null, 3),
+        note: "append(4): spare slot, O(1). Full again — but notice resizes are getting RARER as capacity grows." },
+      { cells: row([1, 2, 3, 4], 8, [0, 1, 2, 3], null),
+        note: "append(5) &#8594; double to 8, copy 4 elements. Each resize copies twice as much, half as often." },
+      { cells: row([1, 2, 3, 4, 5], 8, null, 4),
+        note: "Total copies across n appends: n/2 + n/4 + n/8 + … &lt; n. Spread over n appends: O(1) each — that is amortized O(1), visualized." }
+    ];
+    Viz.player("viz-append", { caption: "append with capacity doubling — where amortized O(1) comes from", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>The costs, derived</h2>
+  <p>You can now <em>derive</em> the table you met in the <a href="../reference/big-o-cheatsheet.html">cheat sheet</a> (canonical source: <a href="https://wiki.python.org/moin/TimeComplexity">Python Wiki — TimeComplexity</a>):</p>
+  <table>
+    <tr><th>Operation</th><th>Cost</th><th>Because…</th></tr>
+    <tr><td><code>arr[i]</code></td><td><code>O(1)</code></td><td>address arithmetic</td></tr>
+    <tr><td><code>arr.append(x)</code></td><td><code>O(1)</code> amortized</td><td>spare capacity, occasional doubling</td></tr>
+    <tr><td><code>arr.pop()</code> (end)</td><td><code>O(1)</code></td><td>nothing shifts</td></tr>
+    <tr><td><code>arr.pop(0)</code>, <code>arr.insert(0, x)</code></td><td><code>O(n)</code></td><td>everything shifts</td></tr>
+    <tr><td><code>x in arr</code></td><td><code>O(n)</code></td><td>must scan</td></tr>
+    <tr><td><code>arr[a:b]</code></td><td><code>O(b−a)</code></td><td>copies the slice</td></tr>
+    <tr><td><code>len(arr)</code></td><td><code>O(1)</code></td><td>length is stored</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>A <strong>tensor</strong> is a contiguous array plus shape metadata — that's the whole trick. Contiguity is why GPUs can stream tensor data at full memory bandwidth, why <code>reshape</code> can be free (change metadata, not data), and why "memory layout" shows up in performance work. When PyTorch complains a tensor is "not contiguous," you now know exactly what it means.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: the Arrays chapters (static, dynamic) of <a href="https://neetcode.io/courses/dsa-for-beginners/0">NeetCode — DSA for Beginners</a>.</li>
+    <li>First real problems: <a href="https://neetcode.io/practice/practice/neetcode250">NeetCode 250</a> → "Remove Duplicates from Sorted Array", "Concatenation of Array". Time yourself, but don't rush.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Amortized analysis feeling hand-wavy? Ask Claude Code to walk the doubling arithmetic (it sums to &lt; 2n copies for n appends — a lovely proof).</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0002-space-complexity.html">← 0002 Space</a> · Next: <a href="./0004-strings-and-immutability.html">0004 Strings →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Why is arr[i] O(1) for a Python list?",
+    options: [
+      "The list keeps an index that maps positions to values",
+      "Elements sit contiguously, so the address is computed directly",
+      "Python caches the most recently accessed elements",
+      "It isn't — indexing secretly scans up to position i"
+    ],
+    answer: 1,
+    explain: "address = start + i × slot_size. One arithmetic step, regardless of i. No index structure, no cache, no scan."
+  },
+  {
+    code: "arr = []\nfor i in range(1_000_000):\n    arr.append(i)",
+    prompt: "Total time complexity of this loop?",
+    options: ["O(n)", "O(n log n)", "O(n²)", "O(log n)"],
+    answer: 0,
+    explain: "Append is amortized O(1); n appends cost O(n) total. The occasional doubling copies sum to less than 2n moves."
+  },
+  {
+    code: "def dequeue(arr):\n    return arr.pop(0)",
+    prompt: "Time complexity of removing the FIRST element?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 2,
+    explain: "All n−1 remaining elements shift left to fill the gap. Lesson 0011 introduces deque, which fixes exactly this."
+  },
+  {
+    code: "if target in arr:   # arr is a plain list\n    print(\"found\")",
+    prompt: "Time complexity of this membership test?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 2,
+    explain: "Contiguity gives no clue where a value lives — Python scans. Lesson 0005's hash sets make this O(1)."
+  },
+  {
+    prompt: "Review from 0002: reverse_in_place(arr) swaps ends inward using two index variables. Its auxiliary space is:",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 0,
+    explain: "Two integers, no new collection — O(1). 'In place' means exactly this."
+  },
+  {
+    code: "first_half = arr[:len(arr) // 2]",
+    prompt: "Time and space cost of this slice?",
+    options: ["O(1) time, O(1) space", "O(n) time, O(n) space", "O(1) time, O(n) space", "O(n) time, O(1) space"],
+    answer: 1,
+    explain: "Slicing copies: n/2 elements are read and written into a new list — O(n) time and O(n) space after dropping the ½."
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0020 — Binary Trees: BFS</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0020 · Phase 2 · ~20 minutes</span>
+  <h1>Binary Trees: Breadth-First Search</h1>
+  <p class="lede">Today's skill: traverse a tree level by level with a queue — and the level-size trick that makes "per-level" questions easy.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>BFS completes your traversal toolkit: DFS goes deep (stack), BFS goes wide (queue) — Lesson 0011's promise that <em>the container is the algorithm</em>, kept. Any question with "level," "nearest," or "minimum depth" in it is BFS bait.</p>
+  </div>
+
+  <h2>The skeleton</h2>
+  <pre><code>from collections import deque
+
+def bfs(root):
+    if not root: return
+    q = deque([root])
+    while q:
+        node = q.popleft()          # oldest discovery first (FIFO)
+        visit(node)
+        if node.left:  q.append(node.left)
+        if node.right: q.append(node.right)</code></pre>
+  <p>Visits: 1, 2, 3, 4, 5 on Lesson 0019's tree — top to bottom, left to right. <strong>O(n) time</strong>; space is the queue's peak, which is the widest level — up to <strong>O(n)</strong> (the bottom level of a full tree holds n/2 nodes). Note the inversion: DFS space tracks <em>height</em>, BFS space tracks <em>width</em>. Deep narrow tree → BFS wins; shallow bushy tree → DFS wins.</p>
+
+  <h2>The level-size trick</h2>
+  <p>The skeleton blurs level boundaries. To process levels as units — <em>"level order traversal," "right side view," "average per level"</em> — snapshot the queue size before draining exactly that many:</p>
+  <pre><code>def level_order(root):
+    if not root: return []
+    q, levels = deque([root]), []
+    while q:
+        size = len(q)                    # everyone in q RIGHT NOW is one level
+        level = []
+        for _ in range(size):            # drain exactly this level
+            node = q.popleft()
+            level.append(node.val)
+            if node.left:  q.append(node.left)   # children queue for NEXT level
+            if node.right: q.append(node.right)
+        levels.append(level)
+    return levels</code></pre>
+  <p>Why it works: when the loop starts an iteration, the queue contains precisely one full level (invariant — provable by induction, Lesson 0017 style). Children appended during the drain sit behind the snapshot boundary. This one trick converts a dozen LeetCode problems into "level_order plus one line": last element of each level = right side view; <code>sum(level)/len(level)</code> = averages; first level with a leaf = minimum depth.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-bfslevels"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function n(id, v, l, r) { return { id: id, v: v, children: [l || null, r || null] }; }
+    const nodes = {};
+    function reg(nd) { if (nd) { nodes[nd.id] = nd; reg(nd.children[0]); reg(nd.children[1]); } }
+    const root = n("1", 1, n("2", 2, n("4", 4), n("5", 5)), n("3", 3));
+    reg(root);
+    const tview = Viz.tree({ root: root, gapX: 56, gapY: 56 });
+    const view = Viz.group(Viz.sub("tree", tview), Viz.sub("q", Viz.array));
+    const fr = [];
+    const q = ["1"], done = {};
+    function qrow(hlFront) {
+      return { rows: [{ label: "queue", noIdx: true,
+        cells: q.length ? q.map((id, i) => (i === 0 && hlFront) ? { v: id, cls: "hl" } : id) : [{ v: "", cls: "ghost" }] }] };
+    }
+    fr.push({ tree: { hl: { "1": "hl" } }, q: qrow(),
+      note: "Seed the queue with the root. Invariant to watch: at every level boundary, the queue holds EXACTLY one complete level." });
+    let level = 0;
+    while (q.length) {
+      const size = q.length;
+      fr.push({ tree: { hl: Object.assign({}, done) }, q: qrow(),
+        note: `Boundary: len(q) = ${size} — level ${level} is [${q.join(", ")}], complete. Snapshot the size, drain exactly that many.` });
+      for (let k = 0; k < size; k++) {
+        const id = q[0];
+        fr.push({ tree: { hl: Object.assign({}, done, (function(){const o={};o[id]="hl";return o;})()) }, q: qrow(true),
+          note: `popleft ${id} — visit it. Its children join the BACK of the queue, safely behind the snapshot boundary.` });
+        q.shift(); done[id] = "good";
+        nodes[id].children.forEach(c => { if (c) q.push(c.id); });
+      }
+      level++;
+    }
+    fr.push({ tree: { hl: Object.assign({}, done) }, q: qrow(),
+      note: "Visited 1 | 2, 3 | 4, 5 — clean levels. Right-side view = last of each level; averages = sum/len per level; min depth = first level containing a leaf." });
+    Viz.player("viz-bfslevels", { caption: "level-order with the level-size trick — the queue holds one level at each boundary", view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>Choosing DFS vs BFS</h2>
+  <table>
+    <tr><th>Question smells like…</th><th>Use</th><th>Why</th></tr>
+    <tr><td>levels, width, zigzag, side views</td><td>BFS</td><td>levels are its native unit</td></tr>
+    <tr><td>nearest/shallowest anything</td><td>BFS</td><td>first hit is provably closest — no need to explore deeper</td></tr>
+    <tr><td>subtree computations, paths, "combine children"</td><td>DFS</td><td>post-order's ask-and-combine (Lesson 0019)</td></tr>
+    <tr><td>either works</td><td>DFS</td><td>five lines of recursion beats queue bookkeeping</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>"Explore cheapest/nearest candidates first, level by level" is the ancestor of serious search: beam search (Lesson 0023) is BFS that keeps only the k most promising nodes per level — the pruning that makes LLM decoding tractable. Game-tree agents (MCTS in AlphaGo) blend BFS-like frontier expansion with learned value estimates deciding which levels deserve width.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">"Binary Tree Level Order Traversal" video</a>.</li>
+    <li>Problems: "Binary Tree Level Order Traversal", "Binary Tree Right Side View", "Minimum Depth of Binary Tree".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Prove the level invariant to yourself in two sentences, then say them to Claude Code tomorrow — the argument is the reusable part; the code is just its shadow.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0019-tree-dfs.html">← 0019 Tree DFS</a> · Next: <a href="./0021-binary-search-trees.html">0021 BSTs →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Swapping BFS's deque for a stack (pop from the same end you push) turns the traversal into…",
+    options: ["depth-first search", "in-order traversal", "level order, reversed", "an infinite loop"],
+    answer: 0,
+    explain: "FIFO explores oldest-first (wide); LIFO dives into the newest discovery (deep). One data structure swap, different algorithm — Lesson 0011's punchline, now proven on trees."
+  },
+  {
+    code: "size = len(q)\nfor _ in range(size):\n    node = q.popleft()\n    ...\n    if node.left: q.append(node.left)",
+    prompt: "Why doesn't the loop accidentally process the children it appends?",
+    options: [
+      "the snapshot size was taken before any children were added — the loop stops at the boundary",
+      "children are appended to the left side of the deque",
+      "popleft() skips nodes added during iteration",
+      "it does — but a visited set filters them"
+    ],
+    answer: 0,
+    explain: "range(size) is frozen at the level's population. Appends land beyond that count and wait for the next while-iteration. The invariant: each while-iteration starts with exactly one complete level enqueued."
+  },
+  {
+    prompt: "'Find the minimum depth (root to nearest leaf).' Why does BFS beat DFS here?",
+    options: [
+      "BFS can stop at the FIRST leaf found — provably the shallowest — while DFS must explore everything",
+      "DFS cannot detect leaves without extra bookkeeping",
+      "BFS uses less memory on all trees",
+      "it doesn't — both must visit every node"
+    ],
+    answer: 0,
+    explain: "BFS visits in depth order, so the first leaf encountered ends the search early. DFS might wander a deep branch first and must finish to be sure. 'Nearest anything' → BFS."
+  },
+  {
+    prompt: "A complete binary tree with 1,000,000 nodes: peak memory for BFS vs DFS is about…",
+    options: [
+      "BFS ~500,000 nodes (widest level); DFS ~20 frames (height)",
+      "BFS ~20 nodes; DFS ~500,000 frames",
+      "both ~1,000,000",
+      "both ~20"
+    ],
+    answer: 0,
+    explain: "Bottom level of a full tree ≈ n/2 wide; height ≈ log₂(10⁶) ≈ 20. Width vs height is a real cost decision, not trivia — say it when choosing."
+  },
+  {
+    prompt: "Review from 0019: the ask-both-subtrees-then-combine pattern corresponds to which traversal order?",
+    options: ["post-order", "pre-order", "in-order", "level-order"],
+    answer: 0,
+    explain: "Children's answers must exist before the parent combines them — node handled last = post-order. This is the engine of Lesson 0022."
+  }
+]);
+</script>
+</body>
+</html>

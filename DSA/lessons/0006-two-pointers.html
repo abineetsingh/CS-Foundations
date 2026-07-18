@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0006 — Two Pointers</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0006 · Phase 1 · ~25 minutes</span>
+  <h1>Two Pointers</h1>
+  <p class="lede">Today's skill: recognize when two indices walking toward each other can replace a nested loop — O(n²) → O(n).</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>This is your first named <strong>pattern</strong> — the recognition units your mission's "spot the pattern in minutes" goal is made of. Two pointers is the easiest to learn and among the most frequently asked.</p>
+  </div>
+
+  <h2>The idea</h2>
+  <p>Many pair-finding problems seem to need all pairs (O(n²)). But when the data is <strong>sorted</strong> (or symmetric, like a palindrome), one comparison tells you which pointer is safe to move — so each element is visited once:</p>
+  <pre><code>left = 0
+right = len(arr) - 1
+while left &lt; right:
+    # examine arr[left] and arr[right]
+    # move exactly one pointer inward, based on a comparison
+</code></pre>
+  <p>Every iteration shrinks the gap by one → at most n iterations → <strong>O(n) time, O(1) space</strong>.</p>
+
+  <h2>Worked example 1: Valid Palindrome</h2>
+  <pre><code>def is_palindrome(s):
+    left, right = 0, len(s) - 1
+    while left &lt; right:
+        if s[left] != s[right]:
+            return False
+        left += 1
+        right -= 1
+    return True</code></pre>
+  <p>Compare the outsides, walk inward. (The interview version skips non-alphanumeric characters — same skeleton plus two inner <code>while</code> skips.)</p>
+
+  <h2>Worked example 2: Two Sum on a SORTED array</h2>
+  <pre><code>def two_sum_sorted(nums, target):
+    left, right = 0, len(nums) - 1
+    while left &lt; right:
+        total = nums[left] + nums[right]
+        if total == target:
+            return [left, right]
+        elif total &lt; target:
+            left += 1        # need a bigger sum → only moving left up can help
+        else:
+            right -= 1       # need a smaller sum → only moving right down can help
+    return []</code></pre>
+  <p>The crucial sentence — say it in interviews: <em>"Because the array is sorted, if the sum is too small, no pair using <code>nums[left]</code> can work, so I can discard it safely."</em> Each step <strong>provably eliminates</strong> candidates. That's why sortedness is the precondition; on unsorted data, use the dict from <a href="./0005-hash-maps-and-sets.html">Lesson 0005</a> instead.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-2ptr"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const a = [1, 3, 4, 6, 8], t = 10, fr = [];
+    const dim = new Set();
+    let l = 0, r = a.length - 1;
+    fr.push({ cells: a.slice(), ptrs: { 0: "L", 4: "R" },
+      note: "target = 10. Pointers at the extremes. Each comparison will eliminate one element FOREVER (faded = provably useless)." });
+    while (l < r) {
+      const s = a[l] + a[r];
+      const mk = () => a.map((v, i) => dim.has(i) ? { v: v, cls: "dim" } :
+        ((i === l || i === r) ? { v: v, cls: s === t ? "good" : "hl" } : v));
+      if (s === t) {
+        fr.push({ cells: mk(), ptrs: { [l]: "L", [r]: "R" },
+          note: `${a[l]} + ${a[r]} = 10 — found, after ${fr.length} comparisons. Brute force checks up to 10 pairs; elimination never re-examines a discarded element.` });
+        break;
+      }
+      if (s < t) {
+        fr.push({ cells: mk(), ptrs: { [l]: "L", [r]: "R" },
+          note: `${a[l]} + ${a[r]} = ${s} &lt; 10. Even with its LARGEST possible partner, ${a[l]} falls short — no pair using it can ever work. Discard it: L moves right.` });
+        dim.add(l); l++;
+      } else {
+        fr.push({ cells: mk(), ptrs: { [l]: "L", [r]: "R" },
+          note: `${a[l]} + ${a[r]} = ${s} &gt; 10. Even with the SMALLEST remaining partner, ${a[r]} overshoots. Discard it: R moves left.` });
+        dim.add(r); r--;
+      }
+    }
+    Viz.player("viz-2ptr", { caption: "two_sum_sorted([1,3,4,6,8], 10) — provable elimination, one element per step", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>When to reach for it</h2>
+  <table>
+    <tr><th>Tell</th><th>Example</th></tr>
+    <tr><td>Sorted array + find a pair/triple with a property</td><td>Two Sum II, 3Sum</td></tr>
+    <tr><td>Symmetric check from both ends</td><td>Valid Palindrome</td></tr>
+    <tr><td>In-place partition/removal</td><td>Remove Duplicates, Move Zeroes (slow/fast variant)</td></tr>
+    <tr><td>Maximize something between two ends</td><td>Container With Most Water</td></tr>
+  </table>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Two Pointers section</a>, first two videos.</li>
+    <li>Problems: "Valid Palindrome", "Two Sum II", then attempt "3Sum" (hard for now — it's two pointers inside a loop; struggle is fine).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>The "why is discarding safe?" argument is the heart of this pattern. If it's fuzzy, ask Claude Code to walk Two Sum II on <code>[1,3,4,6,8]</code>, target 10, step by step.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0005-hash-maps-and-sets.html">← 0005 Hash Maps</a> · Next: <a href="./0007-sliding-window-fixed.html">0007 Sliding Window →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Two converging pointers achieve O(n) because…",
+    options: [
+      "each iteration moves at least one pointer, and they can move at most n steps total",
+      "the comparison at each step takes logarithmic time",
+      "sorted arrays can always be processed in linear time",
+      "the pointers skip over half the array each iteration"
+    ],
+    answer: 0,
+    explain: "The gap shrinks by ≥1 per iteration and starts at n — so at most n iterations. Skipping half each step would be O(log n), which is binary search (Lesson 0014)."
+  },
+  {
+    code: "total = nums[left] + nums[right]   # nums sorted ascending\n# total < target",
+    prompt: "Which move is justified, and why?",
+    options: [
+      "left += 1 — every pair with nums[left] sums even smaller with a smaller right",
+      "right -= 1 — shrinking from the right always increases the sum",
+      "both pointers inward — we need to converge faster",
+      "restart with left = 0 — the invariant is broken"
+    ],
+    answer: 0,
+    explain: "nums[right] is already the largest available partner for nums[left]; if even that is too small, nums[left] is unusable. Discard it: left += 1."
+  },
+  {
+    prompt: "Two Sum on an UNSORTED array, O(n) time required. Best tool?",
+    options: [
+      "Hash map, one pass, checking target − num",
+      "Two pointers after sorting the array",
+      "Nested loops with an early break",
+      "Two pointers directly on the unsorted array"
+    ],
+    answer: 0,
+    explain: "Sorting first costs O(n log n) and scrambles the original indices; pointers on unsorted data can't justify discarding anything. The Lesson 0005 dict is O(n)."
+  },
+  {
+    code: "def remove_val(arr, val):\n    write = 0\n    for read in range(len(arr)):\n        if arr[read] != val:\n            arr[write] = arr[read]\n            write += 1\n    return write",
+    prompt: "This slow/fast variant runs in:",
+    options: ["O(n) time, O(1) space", "O(n) time, O(n) space", "O(n²) time, O(1) space", "O(n log n) time, O(1) space"],
+    answer: 0,
+    explain: "One pass (read), one write index, everything in place. Slow/fast pointers moving the same direction are the second flavor of this pattern."
+  },
+  {
+    prompt: "Review from 0005: why must dict keys be immutable?",
+    options: [
+      "A key's hash must stay valid after insertion",
+      "Immutable objects use less memory per entry",
+      "Python sorts keys and sorting needs stability",
+      "Mutable keys would allow duplicate entries"
+    ],
+    answer: 0,
+    explain: "The slot is computed from the hash at insert time. If the key mutated, its hash would change and the entry would be lost in the wrong slot."
+  }
+]);
+</script>
+</body>
+</html>

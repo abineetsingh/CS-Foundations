@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0021 — Binary Search Trees</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0021 · Phase 2 · ~25 minutes</span>
+  <h1>Binary Search Trees</h1>
+  <p class="lede">Today's skill: exploit the BST invariant — search in O(h), and reason about problems with value bounds instead of exhaustive checks.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>A BST is binary search (Lesson 0014) frozen into a data structure: the sorted array's "discard half per comparison," but with O(h) insertion too. It's also the sharpest test yet of invariant thinking — the classic "validate a BST" question is famous precisely because the obvious solution is wrong.</p>
+  </div>
+
+  <h2>The invariant</h2>
+  <p>At <strong>every</strong> node: all values in the left subtree &lt; node &lt; all values in the right subtree. Not just the children — the entire subtrees.</p>
+  <pre><code>        8
+       / \
+      3   10          search(6): 6 &lt; 8 → go left. 6 &gt; 3 → go right.
+     / \    \         6 &gt; 4? no—wait: subtree of 3's right is {4,6,7}…
+    1   6    14       each comparison discards a whole subtree.
+       / \
+      4   7</code></pre>
+  <pre><code>def search(node, target):
+    if not node:               return None
+    if target == node.val:     return node
+    if target &lt; node.val:      return search(node.left, target)
+    else:                      return search(node.right, target)</code></pre>
+  <p><strong>O(h) time</strong> — one comparison per level, one subtree discarded per comparison. Balanced: O(log n). Degenerate (inserted in sorted order — a chain): O(n). This is the BST's asterisk: the invariant guarantees <em>order</em>, not <em>balance</em>. Self-balancing variants (AVL, red-black) fix this; for interviews you name them and move on — implementing one is not expected.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-bst"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function n(v, l, r) { return { id: String(v), v: v, children: [l || null, r || null] }; }
+    const root = n(8, n(3, n(1), n(6, n(4), n(7))), n(10, null, n(14)));
+    const view = Viz.tree({ root: root, gapX: 44, gapY: 52 });
+    function desc(nd, out) { if (!nd) return out; out.push(nd.id); desc(nd.children[0], out); desc(nd.children[1], out); return out; }
+    const total = desc(root, []).length;
+    function make(vals) {
+      const t = Number(vals.target), fr = [], dim = [];
+      let cur = root;
+      const path = {};
+      fr.push({ note: `search(${t}): one comparison per level. Faded = entire subtrees ruled out by a single comparison.` });
+      while (cur) {
+        path[cur.id] = "hl";
+        if (t === cur.v) {
+          fr.push({ hl: Object.assign({}, path, (function(){const o={};o[cur.id]="good";return o;})()), dim: dim.slice(),
+            note: `${t} == ${cur.v} — found after ${Object.keys(path).length} comparison${Object.keys(path).length===1?"":"s"}. O(h): the path's length, not the tree's size.` });
+          return fr;
+        }
+        const goLeft = t < cur.v;
+        const dropped = desc(cur.children[goLeft ? 1 : 0], []);
+        fr.push({ hl: Object.assign({}, path), dim: dim.concat(dropped),
+          note: `${t} ${goLeft ? "&lt;" : "&gt;"} ${cur.v} &#8594; go ${goLeft ? "left" : "right"}. The invariant guarantees the whole ${goLeft ? "RIGHT" : "LEFT"} subtree (${dropped.length} node${dropped.length === 1 ? "" : "s"}) can't contain ${t}.` });
+        dim.push.apply(dim, dropped);
+        cur = cur.children[goLeft ? 0 : 1];
+      }
+      fr.push({ hl: Object.assign({}, path), dim: dim.slice(),
+        note: `Walked off the tree — ${t} is not here, proven in ${Object.keys(path).length} comparisons instead of ${total}.` });
+      return fr;
+    }
+    Viz.runnable("viz-bst", { caption: "search the BST yourself — one comparison discards one subtree",
+      controls: [{ key: "target", label: "target", type: "number", value: 7, min: 0, max: 20 }],
+      make: make, view: view });
+  })();
+  </script>
+
+  <h2>Two consequences worth owning</h2>
+  <h3>1. In-order traversal yields sorted order</h3>
+  <p>Left &lt; node &lt; right, applied recursively, means Lesson 0019's in-order walk visits values ascending: 1, 3, 4, 6, 7, 8, 10, 14. Instantly solves "kth smallest in a BST" (in-order, count to k) and "validate" (in-order, check ascending).</p>
+  <h3>2. Validation needs bounds, not child-checks</h3>
+  <pre><code>#   5          WRONG: check node.left.val < node.val < node.right.val
+#  / \         at each node. This tree passes — but 6 > 5 sits in the
+# 3   8        left subtree of 5. Local checks miss ancestral limits.
+#  \
+#   6   ← legal vs parent 3, ILLEGAL vs grandparent 5
+
+def is_valid(node, lo=float("-inf"), hi=float("inf")):
+    if not node:
+        return True
+    if not (lo &lt; node.val &lt; hi):        # the window inherited from ancestors
+        return False
+    return (is_valid(node.left,  lo, node.val) and    # left: cap above by me
+            is_valid(node.right, node.val, hi))       # right: floor below by me</code></pre>
+  <p>Each node lives in a <strong>window (lo, hi)</strong> narrowed by every ancestor. Passing constraints <em>down</em> as parameters — rather than answers up — is the complementary recursion pattern to Lesson 0019's ask-and-combine. You now have both directions.</p>
+
+  <h2>When a BST is the answer</h2>
+  <table>
+    <tr><th>Need</th><th>Hash map</th><th>Sorted array</th><th>BST (balanced)</th></tr>
+    <tr><td>lookup</td><td><code>O(1)</code></td><td><code>O(log n)</code></td><td><code>O(log n)</code></td></tr>
+    <tr><td>insert/delete</td><td><code>O(1)</code></td><td><code>O(n)</code></td><td><code>O(log n)</code></td></tr>
+    <tr><td>range / min / max / successor</td><td>✗ unordered</td><td><code>O(log n)</code></td><td><code>O(log n)</code></td></tr>
+  </table>
+  <p>The niche: <strong>ordered operations under change</strong>. Static data → sorted array + bisect. No order needed → hash map. Both at once → BST. (Python has no built-in; interviews accept naming <code>sortedcontainers.SortedList</code>.)</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Databases index with B-trees — BSTs widened for disk pages — which is why your feature-store range queries are O(log n). And decision trees/GBDTs (XGBoost) route inputs root-to-leaf through threshold comparisons exactly like <code>search()</code>; "tree depth" as a regularization knob is literally the h in O(h).</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">BST chapters (search, insert/remove)</a>.</li>
+    <li>Problems: "Search in a BST", "Validate Binary Search Tree" (the bounds one), "Kth Smallest Element in a BST".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Insert 1,2,3,4,5 into an empty BST by hand and look at what you built. Then ask Claude Code what insertion order would have produced a balanced tree — the answer previews why randomization and rebalancing exist.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0020-tree-bfs.html">← 0020 Tree BFS</a> · Next: <a href="./0022-tree-problems-toolkit.html">0022 Tree Toolkit →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "BST search is O(h) because each comparison…",
+    options: [
+      "discards one entire subtree from consideration",
+      "sorts one additional level of the tree",
+      "halves the VALUE range of the target",
+      "removes exactly one node from the search"
+    ],
+    answer: 0,
+    explain: "The invariant lets one comparison speak for a whole subtree — binary search's elimination, structuralized. h comparisons max; log n only if balanced."
+  },
+  {
+    code: "#   5\n#  / \\\n# 3   8\n#  \\\n#   6",
+    prompt: "Why does checking only child-vs-parent miss this invalid BST?",
+    options: [
+      "6 satisfies its parent (6 > 3) but violates its grandparent's limit (must be < 5)",
+      "6 is a leaf, and leaves are never checked",
+      "8 has no left child, which breaks the check",
+      "it doesn't — this tree is a valid BST"
+    ],
+    answer: 0,
+    explain: "The invariant covers whole subtrees, so constraints accumulate from ALL ancestors. Each node's legal window (lo, hi) must be passed down — 6 needed (3, 5)."
+  },
+  {
+    prompt: "'Kth smallest element in a BST' — the clean solution is…",
+    options: [
+      "in-order traversal, stopping at the kth visit",
+      "BFS level order, taking the kth node",
+      "collect all values into a heap and pop k times",
+      "binary search on the root's value"
+    ],
+    answer: 0,
+    explain: "In-order visits a BST's values in ascending order (left < node < right, recursively) — the kth visit IS the kth smallest. O(h + k)."
+  },
+  {
+    prompt: "You need O(log n) inserts AND 'smallest element ≥ x' queries on changing data. Best fit?",
+    options: [
+      "a balanced BST (or SortedList)",
+      "a hash set",
+      "a sorted Python list with bisect",
+      "an unsorted list with linear scans"
+    ],
+    answer: 0,
+    explain: "Successor queries need order (hash is out); frequent inserts rule out the sorted array's O(n) shifting (Lesson 0003). Order + mutation = tree territory."
+  },
+  {
+    prompt: "Review from 0020: BFS's peak memory on a tree is proportional to…",
+    options: [
+      "the widest level of the tree",
+      "the height of the tree",
+      "the number of leaves",
+      "always n/2 exactly"
+    ],
+    answer: 0,
+    explain: "The queue holds a level (plus incoming children) at once. DFS's stack tracks height instead — width vs depth, the recurring space duality."
+  }
+]);
+</script>
+</body>
+</html>

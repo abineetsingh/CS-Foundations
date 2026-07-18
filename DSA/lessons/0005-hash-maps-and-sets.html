@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0005 — Hash Maps &amp; Sets</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0005 · Phase 0 · ~30 minutes</span>
+  <h1>Hash Maps &amp; Sets: The Interview Workhorse</h1>
+  <p class="lede">Today's skill: use dicts and sets to turn O(n²) solutions into O(n) — and explain <em>why</em> the lookup is O(1).</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>If you learn one data structure deeply, make it this one. "Use a hash map" is the correct optimization in more interview problems than every other structure combined. Two Sum — historically the most-asked interview question on earth — is a hash map in disguise.</p>
+  </div>
+
+  <h2>How hashing works (enough to explain in an interview)</h2>
+  <p>A hash table is just an array (Lesson <a href="./0003-arrays-and-python-lists.html">0003</a>) used cleverly:</p>
+  <ol>
+    <li>A <strong>hash function</strong> turns any key into a number: <code>hash("cat") → 8_764_213…</code></li>
+    <li>Modulo the array size gives a slot: <code>8_764_213 % 8 → slot 5</code>. The key/value goes in slot 5.</li>
+    <li>Lookup replays the same arithmetic — compute, jump, done. <strong>No searching → O(1) average.</strong></li>
+  </ol>
+  <p>Two keys can land in the same slot (a <strong>collision</strong>); the table handles it by chaining or probing, and resizes when it gets crowded. If everything collided, lookups would degrade to O(n) — that's why we say O(1) <em>average</em> (<a href="https://wiki.python.org/moin/TimeComplexity">Python Wiki</a>). In interviews, average case is the expected answer; mentioning the caveat once is a plus.</p>
+  <p>This also explains Lesson 0004's cliffhanger: a key's hash must never change, so <strong>keys must be immutable</strong> — strings, numbers, tuples yes; lists, dicts, sets no.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-hash"></div>
+  <script src="../assets/viz.js"></script>
+  <script>Viz.hashDemo("viz-hash");</script>
+
+  <h2>The three tools</h2>
+  <table>
+    <tr><th>Tool</th><th>Stores</th><th>Reach for it when…</th></tr>
+    <tr><td><code>set()</code></td><td>keys only</td><td>"have I seen this before?"</td></tr>
+    <tr><td><code>dict()</code></td><td>key → value</td><td>"what do I know about this?"</td></tr>
+    <tr><td><code>collections.Counter</code> / <code>defaultdict</code></td><td>key → count/list</td><td>counting or grouping</td></tr>
+  </table>
+
+  <h2>The signature move: trade space for a complexity class</h2>
+  <p><strong>Two Sum</strong>: find two numbers in <code>nums</code> adding to <code>target</code>. Brute force checks all pairs — O(n²). The hash-map insight: for each number, the partner I need is <code>target − num</code>. Have I seen it?</p>
+  <pre><code>def two_sum(nums, target):
+    seen = {}                        # value -> index
+    for i, num in enumerate(nums):
+        need = target - num
+        if need in seen:             # O(1) average
+            return [seen[need], i]
+        seen[num] = i
+    return []</code></pre>
+  <p>One pass, O(1) work per element: <strong>O(n) time, O(n) space</strong>. Note the pattern — don't search for the partner (O(n) each time); <em>remember everything you've walked past</em> and ask in O(1). This "remember the past in a dict" move solves dozens of problems.</p>
+
+  <div id="viz-twosum"></div>
+  <script>
+  (function () {
+    const nums = [3, 8, 11, 2, 5], target = 13;
+    const fr = [], seen = {};
+    const view = Viz.group(Viz.sub("arr", Viz.array), Viz.sub("dict", Viz.kv));
+    fr.push({ arr: { cells: nums.slice() }, dict: { label: "seen", pairs: [] },
+      note: "target = 13. One pass; the dict remembers value &#8594; index for everything walked past." });
+    for (let i = 0; i < nums.length; i++) {
+      const need = target - nums[i];
+      const pairs = Object.keys(seen).map(k => ({ k: k, v: seen[k] }));
+      if (seen[need] !== undefined) {
+        fr.push({
+          arr: { cells: nums.map((v, j) => (j === i || j === seen[need]) ? { v: v, cls: "good" } : v), ptrs: { [i]: "i" } },
+          dict: { label: "seen", pairs: pairs.map(p => Number(p.k) === need ? { k: p.k, v: p.v, cls: "good" } : p) },
+          note: `need = 13 &#8722; ${nums[i]} = <strong>${need}</strong> — and the dict HAS it, in O(1). Answer: indices [${seen[need]}, ${i}]. No inner loop ever ran.`
+        });
+        break;
+      }
+      fr.push({
+        arr: { cells: nums.map((v, j) => j === i ? { v: v, cls: "hl" } : v), ptrs: { [i]: "i" } },
+        dict: { label: "seen", pairs: pairs },
+        note: `need = 13 &#8722; ${nums[i]} = ${need}. In seen? No — O(1) check. Remember ${nums[i]} &#8594; ${i} and move on.`
+      });
+      seen[nums[i]] = i;
+    }
+    Viz.player("viz-twosum", { caption: "two_sum([3,8,11,2,5], 13) — the O(n&#178;) &#8594; O(n) upgrade, live", view: view, frames: fr });
+  })();
+  </script>
+
+  <h3>Counting: Valid Anagram</h3>
+  <pre><code>from collections import Counter
+
+def is_anagram(s, t):
+    return Counter(s) == Counter(t)   # O(n) build, O(1)-ish compare (≤26 letters)</code></pre>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>The <strong>KV cache</strong> you met in Lesson 0002 is this exact pattern at datacenter scale: "remember everything you've computed, look it up in O(1) instead of recomputing." Embedding tables are giant key→vector lookups; feature hashing maps raw features to fixed slots with a hash function, collisions and all. The humble dict is quietly load-bearing across all of ML infrastructure.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson — Phase 0 milestone</h2>
+  <ul>
+    <li><strong>Primary source</strong>: the Hash Usage chapter of <a href="https://neetcode.io/courses/dsa-for-beginners/0">NeetCode — DSA for Beginners</a>.</li>
+    <li><strong>Milestone problems</strong> (solve unassisted, in order): "Contains Duplicate", "Valid Anagram", "Two Sum" on <a href="https://neetcode.io/practice/practice/neetcode250">NeetCode 250</a>. If all three fall within ~20 min each, Phase 0 is done — tell Claude Code your results.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>This lesson carries the most weight so far. If the hash function → slot story doesn't feel solid, ask Claude Code to walk a concrete 8-slot example with real collisions before doing the milestone problems.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0004-strings-and-immutability.html">← 0004 Strings</a> · Next: <a href="./0006-two-pointers.html">0006 Two Pointers →</a> · <a href="../reference/big-o-cheatsheet.html">Big-O sheet</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Why is dict lookup O(1) on average?",
+    options: [
+      "Keys are kept sorted so lookup can binary search",
+      "The key's hash computes the slot directly — no search",
+      "Python caches the last few thousand lookups",
+      "The dict scans, but C makes the scan very fast"
+    ],
+    answer: 1,
+    explain: "hash(key) % table_size is arithmetic, not search. Sorted-order and caching play no part; a scan would be O(n) in any language."
+  },
+  {
+    code: "def has_duplicate(arr):\n    seen = set()\n    for x in arr:\n        if x in seen:\n            return True\n        seen.add(x)\n    return False",
+    prompt: "Time and space complexity?",
+    options: ["O(n) time, O(n) space", "O(n²) time, O(1) space", "O(n) time, O(1) space", "O(n log n) time, O(n) space"],
+    answer: 0,
+    explain: "n iterations × O(1) set operations = O(n) time; the set may grow to n entries = O(n) space. The deliberate trade from Lesson 0002."
+  },
+  {
+    prompt: "Which of these can be a dict key?",
+    options: ["[1, 2, 3]", "(1, 2, 3)", "{1, 2, 3}", "{\"a\": 1}"],
+    answer: 1,
+    explain: "Only the tuple — it's immutable, so its hash is stable. Lists, sets, and dicts are mutable and unhashable."
+  },
+  {
+    code: "def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i + 1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]",
+    prompt: "The one-pass dict version improves this from O(n²) to:",
+    options: ["O(1) time", "O(log n) time", "O(n) time", "O(n log n) time"],
+    answer: 2,
+    explain: "Replacing the inner O(n) search with an O(1) dict lookup drops a factor of n. Cost: O(n) memory. Say the trade out loud."
+  },
+  {
+    code: "x in arr        # arr is a list\nx in seen       # seen is a set",
+    prompt: "Review from 0003: the costs of these two membership tests are, respectively:",
+    options: ["O(n) and O(1)", "O(1) and O(1)", "O(n) and O(n)", "O(log n) and O(1)"],
+    answer: 0,
+    explain: "Lists must scan (contiguity says nothing about where a value is); sets hash straight to the slot. Converting a lookup-heavy list to a set is a one-line optimization."
+  },
+  {
+    code: "from collections import Counter\ncounts = Counter(words)          # n words\ntop = counts.most_common(1)",
+    prompt: "Time complexity of building counts?",
+    options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+    answer: 2,
+    explain: "One pass, one O(1) dict increment per word: O(n). Counter is a dict with counting sugar — same costs."
+  }
+]);
+</script>
+</body>
+</html>

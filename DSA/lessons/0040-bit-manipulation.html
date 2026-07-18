@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0040 — Bit Manipulation</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0040 · Phase 4 · ~20 minutes</span>
+  <h1>Bit Manipulation (The Short Lesson)</h1>
+  <p class="lede">Today's skill: the six bit operations, the four classic tricks — low frequency in interviews, but nearly free to learn.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this — honestly</span>
+    <p>Bit questions appear less often than everything else in this course, but the whole topic is one sitting, the tricks are memorable, and "Single Number" still shows up. Cost-benefit says: learn it once, lightly, now — then let the spaced-review quizzes maintain it.</p>
+  </div>
+
+  <h2>The operations</h2>
+  <pre><code>a = 0b1100  (12)         AND  a &amp; b   → 0b0100  (both bits set)
+b = 0b0110  ( 6)         OR   a | b   → 0b1110  (either set)
+                         XOR  a ^ b   → 0b1010  (exactly one set)
+                         NOT  ~a      → -13     (Python: -(a+1), infinite-precision!)
+                         SHIFT a &lt;&lt; 2 → 48 (×4)   a &gt;&gt; 1 → 6 (÷2, floor)
+
+bin(12) → '0b1100'       format(12, '08b') → '00001100'</code></pre>
+  <p>Shifts ARE arithmetic: <code>x &lt;&lt; k</code> = x·2ᵏ, <code>x &gt;&gt; k</code> = x // 2ᵏ — Lesson 0014's halving, one instruction. One Python honesty note: ints are arbitrary-precision, so there's no 32-bit wraparound; problems that assume it ("reverse bits of a 32-bit integer") need explicit masking with <code>&amp; 0xFFFFFFFF</code>.</p>
+
+  <h2>The four tricks worth owning</h2>
+  <h3>1. XOR cancels pairs — Single Number</h3>
+  <pre><code>def single_number(nums):        # every element appears twice, except one
+    result = 0
+    for x in nums:
+        result ^= x             # pairs annihilate: a ^ a = 0; 0 ^ x = x
+    return result               # O(n) time, O(1) space</code></pre>
+  <p>XOR is commutative and self-inverse, so the pairs vanish regardless of order. The hash-map solution (Lesson 0005) costs O(n) space; XOR does it in O(1) — the follow-up interviewers fish for.</p>
+  <h3>2. <code>n &amp; (n-1)</code> clears the lowest set bit</h3>
+  <pre><code>def count_bits(n):              # how many 1-bits?
+    count = 0
+    while n:
+        n &amp;= n - 1              # one set bit vanishes per iteration
+        count += 1
+    return count                # loops once per SET bit, not per bit
+# corollary: n & (n-1) == 0  ⇔  n is a power of two (or zero)</code></pre>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-bits"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function bits(x) { return Array.from({ length: 8 }, (_, i) => (x >> (7 - i)) & 1); }
+    function make(vals) {
+      let n = Math.max(1, Math.min(255, Math.floor(Number(vals.n) || 88)));
+      const orig = n, fr = [];
+      let count = 0;
+      fr.push({ rows: [{ label: "n", cells: bits(n).map(String), noIdx: true }],
+        note: `n = ${orig} in 8 bits. Repeat n &amp;= n&#8722;1 until zero — counting iterations counts the SET bits.` });
+      while (n) {
+        const m = n - 1, res = n & m;
+        const nb = bits(n), mb = bits(m), rb = bits(res);
+        let low = 7;
+        for (let i = 7; i >= 0; i--) if (nb[i] === 1) { low = i; break; }
+        count++;
+        fr.push({ rows: [
+            { label: "n", cells: nb.map((b, i) => i === low ? { v: b, cls: "hl" } : String(b)), noIdx: true },
+            { label: "n&#8722;1", cells: mb.map(String), noIdx: true },
+            { label: "AND", cells: rb.map((b, i) => i === low ? { v: b, cls: "bad" } : String(b)), noIdx: true }
+          ],
+          note: `Subtracting 1 borrows through the trailing zeros — flipping the LOWEST set bit (red) and everything under it. AND keeps only what both share: exactly that bit dies. count = ${count}.` });
+        n = res;
+      }
+      fr.push({ rows: [{ label: "n", cells: bits(0).map(String), noIdx: true }],
+        note: `Zero after ${count} iteration${count === 1 ? "" : "s"} &#8594; ${orig} has <strong>${count}</strong> set bit${count === 1 ? "" : "s"}. The loop ran once per SET bit, not once per bit${(orig & (orig - 1)) === 0 ? " — and a single iteration proves " + orig + " is a power of two!" : "."}` });
+      return fr;
+    }
+    Viz.runnable("viz-bits", { caption: "watch n &amp; (n&#8722;1) clear one bit per step — try your own n",
+      controls: [{ key: "n", label: "n", type: "number", value: 88, min: 1, max: 255 }],
+      make: make, view: Viz.array });
+  })();
+  </script>
+  <h3>3. Check / set / toggle bit i</h3>
+  <pre><code>(n &gt;&gt; i) &amp; 1        # read bit i
+n | (1 &lt;&lt; i)        # set bit i
+n ^ (1 &lt;&lt; i)        # flip bit i</code></pre>
+  <h3>4. Bitmask as a set — n booleans in one int</h3>
+  <pre><code>mask = 0b0101       # items {0, 2} chosen: integer AS a subset
+# subsets of n items ↔ integers 0 .. 2ⁿ−1 — loop them:
+for mask in range(1 &lt;&lt; n):
+    if mask &amp; (1 &lt;&lt; i): ...     # is item i in this subset?</code></pre>
+  <p>This one earns its place: it re-expresses Lesson 0026's subsets as counting, and powers "bitmask DP" (traveling-salesman-style states) — beyond interview scope, but now readable.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Quantization — the technique that shrinks LLMs to run on laptops — is bit manipulation as a discipline: packing weights into 4-bit fields, unpacking with shifts and masks. Attention masks, GPU warp votes, and Bloom filters (hash-based set-membership with bit arrays — Lesson 0005 meets today) all live at this level. You won't write it daily; you'll read it forever.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Bit Manipulation section</a>.</li>
+    <li>Problems: "Single Number", "Number of 1 Bits", "Counting Bits" (a lovely DP-meets-bits hybrid: dp[i] = dp[i &gt;&gt; 1] + (i &amp; 1)).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Work trick 2 by hand on n = 0b1011000: write n−1 in binary, AND them, see which bit died. One concrete trace beats three explanations. Show Claude Code if the borrow propagation surprises you.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0039-intervals.html">← 0039 Intervals</a> · Next: <a href="./0041-interview-loop.html">0041 The Interview Loop →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "XOR solves Single Number in O(1) space because…",
+    options: [
+      "a ^ a = 0 and XOR is order-independent — every pair annihilates, leaving the singleton",
+      "XOR sorts the numbers as a side effect",
+      "XOR is faster than dictionary hashing",
+      "duplicates always sit adjacent in the array"
+    ],
+    answer: 0,
+    explain: "Commutativity lets you mentally reorder into pairs; self-inversion kills each pair. No memory of WHICH elements were seen is needed — that's where the O(n) space went."
+  },
+  {
+    code: "n = 0b1011000\nn & (n - 1)",
+    prompt: "The result is…",
+    options: ["0b1010000", "0b1011000", "0b0011000", "0b1010111"],
+    answer: 0,
+    explain: "n−1 borrows through the trailing zeros: 0b1010111. ANDing clears the lowest set bit (and restores the zeros): 0b1010000. One set bit dies per application — hence the fast popcount."
+  },
+  {
+    prompt: "n & (n - 1) == 0 for positive n means…",
+    options: [
+      "n is a power of two — exactly one set bit",
+      "n is even",
+      "n is a Mersenne number",
+      "n has an even number of set bits"
+    ],
+    answer: 0,
+    explain: "One set bit → clearing it leaves 0. The classic O(1) power-of-two test; guard n > 0 since 0 also passes."
+  },
+  {
+    code: "for mask in range(1 << 3):\n    print(format(mask, '03b'))",
+    prompt: "This loop enumerates…",
+    options: [
+      "all 8 subsets of a 3-element set, as bit patterns 000 through 111",
+      "the 3 permutations of a binary string",
+      "powers of two up to 8",
+      "the binary representations of the first 3 integers"
+    ],
+    answer: 0,
+    explain: "Integers 0..2ⁿ−1 ↔ subsets: bit i = membership of item i. Lesson 0026's 2ⁿ decision tree, flattened into counting — sometimes the cleanest subset iterator."
+  },
+  {
+    prompt: "Review from 0039: 'minimum rooms for these meetings' equals…",
+    options: [
+      "the peak number of simultaneously running meetings, found by sweeping sorted starts and ends",
+      "the number of merged interval blocks",
+      "total meeting time divided by the day's length",
+      "the count of meetings overlapping the longest one"
+    ],
+    answer: 0,
+    explain: "Sweep time with +1/−1 events; the running maximum is both a lower bound and achievable. Merged blocks (option 2) answer a different question — merging loses concurrency counts."
+  }
+]);
+</script>
+</body>
+</html>

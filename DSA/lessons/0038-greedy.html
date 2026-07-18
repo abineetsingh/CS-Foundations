@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0038 — Greedy Algorithms</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0038 · Phase 4 · ~25 minutes</span>
+  <h1>Greedy: When Local Best Is Globally Best</h1>
+  <p class="lede">Today's skill: recognize when taking the locally best option is provably optimal — and when it's a trap that DP must clean up.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Greedy sits opposite DP: no table, no look-back — one decisive pass. When it's right it's beautifully simple; when it's wrong it's confidently, silently wrong. Interviews test exactly this judgment: <em>candidates who greedy correctly and say why</em> stand out from those who greedy hopefully.</p>
+  </div>
+
+  <h2>The idea, and the trap, in one problem</h2>
+  <p><em>Coin Change with coins [1, 5, 10, 25], amount 30:</em> greedy (take the biggest coin that fits) gives 25+5 = 2 coins. Optimal! <em>Same greedy with coins [1, 15, 25], amount 30:</em> greedy gives 25+1+1+1+1+1 = 6 coins; optimal is 15+15 = 2. <strong>Identical algorithm, one works, one fails</strong> — greediness is a property of the <em>problem</em>, not the technique. US coin denominations happen to have the right structure; [1, 15, 25] doesn't. That's why Lesson 0037 solved general coin change with DP.</p>
+
+  <h2>Two greedy classics that ARE correct</h2>
+  <h3>Jump Game — track the reachable frontier</h3>
+  <p><em>nums[i] = max jump length from i; can you reach the end?</em></p>
+  <pre><code>def can_jump(nums):
+    reach = 0                           # furthest index reachable so far
+    for i, jump in enumerate(nums):
+        if i &gt; reach:                   # standing beyond the frontier: stuck
+            return False
+        reach = max(reach, i + jump)    # extend the frontier
+    return True</code></pre>
+  <p>O(n), one pass, one variable. Why safe? <em>Reachability is monotone</em> — knowing the furthest reachable point summarizes everything useful about the past; no combination of shorter jumps can beat the frontier. (Notice the family resemblance to Lesson 0008's window invariant: one maintained quantity carries the whole history.)</p>
+
+  <h3>Interval scheduling — earliest finish first</h3>
+  <p><em>Maximum number of non-overlapping meetings.</em> Sort by <strong>end time</strong>, always take the earliest-ending compatible meeting. The proof is the standard <strong>exchange argument</strong>, worth owning as a template: <em>take any optimal schedule; its first meeting can be swapped for the earliest-ending one without breaking anything (it ends no later, so everything after still fits). Repeat down the schedule — greedy is never behind.</em> Sorting by start time or by duration both fail (build the 3-interval counterexamples yourself — it's a five-minute exercise that cements the point).</p>
+
+  <h2>The judgment procedure</h2>
+  <ol>
+    <li><strong>Try to break it</strong>: hunt for a small counterexample where local-best loses (like [1, 15, 25]). Two minutes of honest attack.</li>
+    <li><strong>If unbreakable, say why</strong>: an exchange argument ("any optimal solution can be rewritten to start with the greedy choice") or a monotone-frontier argument (Jump Game, Dijkstra's finalization — Lesson 0032).</li>
+    <li><strong>If broken, fall back to DP</strong> — the decision tree genuinely branches, so pay for the table (Lesson 0034's four questions).</li>
+  </ol>
+  <p>In interviews, run the procedure <em>out loud</em>: "Greedy by X… can I break it? … here's a counterexample, so DP" is exactly the reasoning they're grading. Greedy tells: <em>"maximum number of non-overlapping…", "minimum number of jumps/refuels/arrows", sorted-then-scan structure.</em></p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-greedy"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function make(vals) {
+      const coins = vals.set === "US {1,5,10,25}" ? [25, 10, 5, 1] : [25, 15, 1];
+      const amount = Math.max(1, Math.min(60, Math.floor(Number(vals.amount) || 30)));
+      const fr = [], picks = [];
+      let rem = amount;
+      fr.push({ cells: [{ v: amount, cls: "hl" }], noIdx: true,
+        note: `Greedy on {${coins.slice().sort((a,b)=>a-b).join(", ")}}: repeatedly take the BIGGEST coin that fits the remainder. Watch it, then judge it.` });
+      while (rem > 0) {
+        const c = coins.find(x => x <= rem);
+        picks.push(c); rem -= c;
+        fr.push({ cells: picks.map((v, i) => i === picks.length - 1 ? { v: v, cls: "hl" } : v)
+            .concat([{ v: "rem " + rem, cls: "ghost" }]), noIdx: true,
+          note: `Biggest coin &#8804; ${rem + c} is ${c} — take it. Remaining: ${rem}. Coins used: ${picks.length}.` });
+      }
+      const dp = Array(amount + 1).fill(Infinity); dp[0] = 0;
+      for (let a = 1; a <= amount; a++) coins.forEach(c => { if (c <= a && dp[a - c] + 1 < dp[a]) dp[a] = dp[a - c] + 1; });
+      const opt = dp[amount], ok = opt === picks.length;
+      fr.push({ cells: picks.map(v => ({ v: v, cls: ok ? "good" : "bad" })), noIdx: true,
+        note: ok
+          ? `Greedy used ${picks.length} coin${picks.length === 1 ? "" : "s"} — and DP confirms the optimum is ${opt}. On THIS system, biggest-first is provably safe (canonical denominations). Now try the other coin set.`
+          : `Greedy used <strong>${picks.length}</strong> coins — but DP finds <strong>${opt}</strong>. Greedy is BROKEN on this system (30 = 15+15, but greedy grabbed 25 first). Identical algorithm, different problem structure: attack before you trust.` });
+      return fr;
+    }
+    Viz.runnable("viz-greedy", { caption: "greedy coin-picking vs the DP optimum — break it yourself",
+      controls: [{ key: "set", label: "coins", type: "select", value: "{1,15,25}", options: ["{1,15,25}", "US {1,5,10,25}"] },
+                 { key: "amount", label: "amount", type: "number", value: 30, min: 1, max: 60 }],
+      make: make, view: Viz.array });
+  })();
+  </script>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Greedy decoding — take the argmax token every step — is the [1, 15, 25] trap at generation time: locally best tokens, globally mediocre sentences. Beam search (Lesson 0023) hedges by keeping k candidates; sampling hedges by randomizing. And gradient descent itself is a greedy frontier algorithm — locally steepest step, no global guarantee — which is why loss landscapes, momentum, and learning-rate schedules matter. "When is greedy safe?" is a research question your field asks daily.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Greedy section, "Jump Game" video</a>.</li>
+    <li>Problems: "Jump Game", "Jump Game II" (minimum jumps — frontier + level counting: BFS thinking on an array!), "Gas Station".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Bring Claude Code a greedy idea you're unsure about (from any problem) and try to break it together — attack practice with feedback is how the judgment gets calibrated.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0037-knapsack.html">← 0037 Knapsack</a> · Next: <a href="./0039-intervals.html">0039 Intervals →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Greedy coin-picking works for [1, 5, 10, 25] but fails for [1, 15, 25] because…",
+    options: [
+      "greedy correctness depends on the problem's structure — some denomination systems reward biggest-first, others punish it",
+      "greedy requires an even number of denominations",
+      "25 is not a multiple of 15",
+      "greedy only works when a 1-unit coin exists"
+    ],
+    answer: 0,
+    explain: "The algorithm is identical; the INSTANCE decides. (Denomination systems where greedy works are called 'canonical' — US coins are, by design.) Never trust greedy without an argument or an attack."
+  },
+  {
+    prompt: "The exchange argument proves greedy optimal by showing…",
+    options: [
+      "any optimal solution can be rewritten, step by step, to make the greedy choices without getting worse",
+      "greedy examines fewer candidates than DP",
+      "no counterexample exists among small inputs",
+      "the greedy choice is unique at every step"
+    ],
+    answer: 0,
+    explain: "If optimal can be morphed into greedy at no cost, greedy ties optimal. It's the same proof shape as Dijkstra's finalization and LCS's diagonal move — you've now seen the exchange argument three times."
+  },
+  {
+    code: "\"Maximum non-overlapping meetings.\"\nGreedy A: sort by START time, take compatible.\nGreedy B: sort by END time, take compatible.",
+    prompt: "Which is correct, and what breaks the other?",
+    options: [
+      "B — a meeting that starts early but runs forever blocks everything under A",
+      "A — B misses meetings that start before the current one ends",
+      "both — start and end sorting are symmetric",
+      "neither — this problem requires DP"
+    ],
+    answer: 0,
+    explain: "Ending earliest leaves maximal room for the future — that's the exchangeable property. One marathon 9am–9pm meeting destroys start-sorting. Duration-sorting fails too (a medium meeting straddling two shorts)."
+  },
+  {
+    code: "\"Minimum number of jumps to reach the end\n(Jump Game II).\"",
+    prompt: "The O(n) greedy structure is…",
+    options: [
+      "sweep a frontier: when you exhaust the current jump's range, take another jump to the furthest point seen — count the refills",
+      "always jump the maximum distance allowed at each step",
+      "sort positions by jump length and take the largest",
+      "impossible greedily — DP on jump counts is required"
+    ],
+    answer: 0,
+    explain: "It's BFS levels flattened onto an array: current range = this level, furthest-seen = next level's edge. Max-jump-always is the trap (a huge jump may land somewhere barren). DP works but is O(n²) — greedy is the intended answer."
+  },
+  {
+    prompt: "Review from 0037: 'can items repeat?' routes knapsack implementations how?",
+    options: [
+      "no → take-branch reads the previous row (0/1); yes → same row (unbounded)",
+      "no → sort items first; yes → use a heap",
+      "no → BFS; yes → DFS",
+      "no → O(n) space; yes → O(n·W) space"
+    ],
+    answer: 0,
+    explain: "Previous row = item spent; same row = item still available. One index encodes the reuse policy — the fork where knapsack bugs concentrate."
+  }
+]);
+</script>
+</body>
+</html>

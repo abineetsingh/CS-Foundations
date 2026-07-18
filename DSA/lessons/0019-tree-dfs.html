@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0019 — Binary Trees: DFS</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0019 · Phase 2 · ~30 minutes</span>
+  <h1>Binary Trees: Depth-First Search</h1>
+  <p class="lede">Today's skill: traverse a binary tree recursively in all three orders, and know which order fits which job.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Trees are where your recursion investment pays out: a tree is a <em>recursively defined</em> structure (each child is the root of a smaller tree), so recursion isn't one technique among several — it's the native language. Tree questions are the most common interview category after arrays.</p>
+  </div>
+
+  <h2>The structure</h2>
+  <pre><code>class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left        # a smaller tree (or None)
+        self.right = right      # a smaller tree (or None)
+
+        1            vocabulary:
+       / \             root: 1 · leaves: 4, 5, 3
+      2   3            node 2's subtree: {2, 4, 5}
+     / \               height: 3 · a node's depth: root=0, so 4 is at depth 2
+    4   5</code></pre>
+  <p>A linked list (Lesson 0012) is a tree where every node has one child. The upgrade to two children is what forces a choice — <em>which child first?</em> — and that choice is the whole topic.</p>
+
+  <h2>Depth-first: go deep, then backtrack</h2>
+  <p>DFS follows one branch to the bottom before trying siblings — it's just recursion's natural call order. The three variants differ only in <em>when the node itself is handled</em> — exactly the pre/post distinction from <a href="./0017-recursion-i.html">Lesson 0017</a>'s mystery function:</p>
+  <pre><code>def preorder(node):                    # node, then children
+    if not node: return
+    visit(node)                        #   copy a tree, serialize
+    preorder(node.left)
+    preorder(node.right)
+
+def inorder(node):                     # left, node, right
+    if not node: return
+    inorder(node.left)                 #   BSTs in sorted order (Lesson 0021)
+    visit(node)
+    inorder(node.right)
+
+def postorder(node):                   # children, then node
+    if not node: return
+    postorder(node.left)               #   compute from subtree answers;
+    postorder(node.right)              #   delete a tree safely
+    visit(node)</code></pre>
+  <p>All three: <strong>O(n) time</strong> (every node once), <strong>O(h) space</strong> for the call stack, where h is the height — log n if balanced, n if a degenerate chain. Saying "O(h), which is log n balanced, n worst case" is the complete interview answer.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-dfs"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function n(id, v, l, r) { return { id: id, v: v, children: [l || null, r || null] }; }
+    const root = n("1", 1, n("2", 2, n("4", 4), n("5", 5)), n("3", 3));
+    const view = Viz.tree({ root: root, gapX: 56, gapY: 56 });
+    function make(vals) {
+      const order = vals.order, seq = [];
+      (function walk(nd) {
+        if (!nd) return;
+        if (order === "pre-order") seq.push(nd.id);
+        walk(nd.children[0]);
+        if (order === "in-order") seq.push(nd.id);
+        walk(nd.children[1]);
+        if (order === "post-order") seq.push(nd.id);
+      })(root);
+      const why = order === "pre-order" ? "the node is handled BEFORE its subtrees"
+        : order === "in-order" ? "left subtree first, THEN the node, then right"
+        : "both subtrees are fully finished before the node";
+      const fr = [{ note: `${order}: ${why}. Badges show visit order as it happens.` }];
+      const badge = {}, hl = {};
+      seq.forEach((id, k) => {
+        badge[id] = String(k + 1); hl[id] = "good";
+        fr.push({ badge: Object.assign({}, badge), hl: Object.assign({}, hl, (function(){const o={};o[id]="hl";return o;})()),
+          note: `Visit #${k + 1}: node ${id}. Sequence so far: ${seq.slice(0, k + 1).join(", ")}.` });
+      });
+      fr.push({ badge: Object.assign({}, badge), hl: Object.assign({}, hl),
+        note: `${order} visits: <strong>${seq.join(", ")}</strong>. Same O(n) walk in all three — only WHEN the node is handled changes. Try the other orders and compare.` });
+      return fr;
+    }
+    Viz.runnable("viz-dfs", { caption: "pick a traversal order, watch it walk the tree",
+      controls: [{ key: "order", label: "order", type: "select", value: "in-order",
+        options: ["pre-order", "in-order", "post-order"] }],
+      make: make, view: view });
+  })();
+  </script>
+
+  <h2>The pattern that solves most tree problems</h2>
+  <p><em>Ask each subtree for its answer, combine with the current node</em> — post-order + the leap of faith:</p>
+  <pre><code>def max_depth(node):
+    if not node:
+        return 0                       # base: empty tree has depth 0
+    left = max_depth(node.left)        # trust
+    right = max_depth(node.right)      # trust
+    return 1 + max(left, right)        # combine</code></pre>
+  <p>Swap the combine line and you get a different classic: <code>left + right + node.val</code>-style sums, <code>min</code> for shallowest leaf, tuple returns for balance checks. Lesson 0022 milks this systematically.</p>
+
+  <h2>DFS without recursion — the stack, explicit</h2>
+  <pre><code>def preorder_iterative(root):
+    stack = [root] if root else []
+    while stack:
+        node = stack.pop()
+        visit(node)
+        if node.right: stack.append(node.right)   # right first, so left pops first
+        if node.left:  stack.append(node.left)</code></pre>
+  <p>Same algorithm, same costs — you're managing Lesson 0010's stack yourself instead of borrowing Python's. Interviewers occasionally ask for this to check the recursion↔stack equivalence is real to you.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Every JSON config, parse tree, and abstract syntax tree is walked with these exact traversals — a tokenizer's parse of your prompt included. Post-order is secretly the star: "compute children before parent" is the dependency order of a forward pass through a model's module tree, and its formal generalization (topological sort, Lesson 0030) schedules every computation graph in every framework.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Trees section</a>, first videos.</li>
+    <li>Problems: "Maximum Depth of Binary Tree", "Invert Binary Tree" (the famous one), "Same Tree". All three are the ask-combine pattern.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Take the tree in the diagram and write all three traversal orders by hand (answers: pre 1,2,4,5,3 · in 4,2,5,1,3 · post 4,5,2,3,1). Mismatch? Ask Claude Code to animate the call stack for the one that's off.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0018-recursion-ii.html">← 0018 Divide &amp; Conquer</a> · Next: <a href="./0020-tree-bfs.html">0020 Tree BFS →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "    1\n   / \\\n  2   3\n / \\\n4   5",
+    prompt: "In-order traversal visits the nodes in which order?",
+    options: ["4 2 5 1 3", "1 2 4 5 3", "4 5 2 3 1", "1 2 3 4 5"],
+    answer: 0,
+    explain: "In-order = left subtree, node, right subtree, applied recursively: dive to 4, back to 2, then 5, up to 1, then 3."
+  },
+  {
+    prompt: "DFS space complexity is O(h), not O(n), because…",
+    options: [
+      "only the frames along the CURRENT root-to-node path are live at once",
+      "visited nodes are freed from the tree during traversal",
+      "h and n are always equal in binary trees",
+      "Python reuses stack frames across sibling calls"
+    ],
+    answer: 0,
+    explain: "When you backtrack from a subtree, its frames pop. The stack's peak is the longest path: log n in a balanced tree, n in a chain. Always state both."
+  },
+  {
+    code: "\"Free every node's memory, children before parents,\nso no freed node is ever touched again.\"",
+    prompt: "Which traversal order?",
+    options: ["post-order", "pre-order", "in-order", "level-order"],
+    answer: 0,
+    explain: "Handle the node AFTER both subtrees are fully handled — post-order. Pre-order would free a parent while its children still need it."
+  },
+  {
+    code: "def diameter_part(node):\n    if not node:\n        return 0\n    left = diameter_part(node.left)\n    right = diameter_part(node.right)\n    return 1 + max(left, right)",
+    prompt: "Via the three checks: what does this compute?",
+    options: [
+      "the height of the tree (longest root-to-leaf node count)",
+      "the total number of nodes",
+      "the largest value in the tree",
+      "the number of leaves"
+    ],
+    answer: 0,
+    explain: "Base: empty → 0. Trust: children return their heights. Combine: my height = 1 + taller child. You just read a recursive function without tracing — the skill working."
+  },
+  {
+    prompt: "Review from 0018: 'O(n) work per level × O(log n) levels' gave merge sort's bound. For DFS on a BALANCED tree, the analogous statement is…",
+    options: [
+      "O(1) work per node × n nodes = O(n), with O(log n) peak stack",
+      "O(n) work per level × log n levels = O(n log n)",
+      "O(log n) work per node × n nodes = O(n log n)",
+      "O(n) time and O(n) stack, always"
+    ],
+    answer: 0,
+    explain: "Traversal does constant work per node — count nodes, not levels: O(n) time. The tree's log n height shows up only in the space bound."
+  }
+]);
+</script>
+</body>
+</html>

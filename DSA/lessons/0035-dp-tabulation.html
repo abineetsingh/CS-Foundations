@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0035 — DP II: Tabulation</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0035 · Phase 4 · ~25 minutes</span>
+  <h1>Dynamic Programming II: Tabulation</h1>
+  <p class="lede">Today's skill: flip top-down memoization into a bottom-up table — then shrink the table to O(1) space with rolling variables.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Same four questions, opposite direction: instead of recursing down from the goal and caching, fill answers up from the base cases. Interviewers often ask for both forms, then ask you to optimize space — this lesson is that exact sequence, rehearsed.</p>
+  </div>
+
+  <h2>The flip</h2>
+  <pre><code># top-down (Lesson 0034):                # bottom-up (today):
+memo = {}                                dp = [0] * (n + 1)
+def ways(i):                             dp[0], dp[1] = 1, 1        # bases first
+    if i in memo: ...                    for i in range(2, n + 1):  # build upward
+    ...recurse on i-1, i-2...                dp[i] = dp[i-1] + dp[i-2]
+                                         return dp[n]</code></pre>
+  <p>Identical state, transition, and bases — only the <em>evaluation order</em> changed: recursion discovers dependencies on demand; tabulation processes states in an order where <strong>dependencies are already filled</strong> (for 1-D problems: left to right). You've seen "process in dependency order" formalized before — it's topological sort (Lesson 0030); a DP's states form a DAG, and tabulation walks it topologically.</p>
+  <table>
+    <tr><th></th><th>Memoization</th><th>Tabulation</th></tr>
+    <tr><td>pro</td><td>write it fast; computes only needed states</td><td>no recursion limit; enables space tricks; often faster constants</td></tr>
+    <tr><td>con</td><td>recursion depth = state count (Python's ~1000 cap!)</td><td>must figure out fill order; computes all states</td></tr>
+    <tr><td>use when</td><td>first working solution, sparse state space</td><td>n is big, or the interviewer asks for it</td></tr>
+  </table>
+
+  <h2>Worked: House Robber</h2>
+  <p><em>Rob houses of values <code>nums</code>; adjacent houses can't both be robbed; maximize loot.</em> Four questions: state = "best loot from the first i houses"; transition = at house i, either skip it (<code>dp[i-1]</code>) or rob it and skip its neighbor (<code>dp[i-2] + nums[i]</code>); bases = zero/one house; cache = the table:</p>
+  <pre><code>def rob(nums):
+    n = len(nums)
+    if n == 1: return nums[0]
+    dp = [0] * n
+    dp[0] = nums[0]
+    dp[1] = max(nums[0], nums[1])
+    for i in range(2, n):
+        dp[i] = max(dp[i-1],                # skip house i
+                    dp[i-2] + nums[i])      # rob house i
+    return dp[n-1]</code></pre>
+  <p>O(n) time, O(n) space. The <code>max</code> is the only change from stair-counting — <em>counting sums branches; optimizing maxes them</em>. One template, two families of problems.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-robber"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const nums = [2, 7, 9, 3, 1], n = nums.length, dp = [], fr = [];
+    function mk(hlN, hlD, note) {
+      fr.push({ rows: [
+        { label: "nums", cells: nums.map((v, i) => (hlN && hlN[i]) ? { v: v, cls: hlN[i] } : v) },
+        { label: "dp", cells: Array.from({ length: n }, (_, i) =>
+            i < dp.length ? ((hlD && hlD[i]) ? { v: dp[i], cls: hlD[i] } : dp[i]) : { v: "", cls: "ghost" }) }
+      ], note: note });
+    }
+    dp.push(nums[0]);
+    mk({ 0: "hl" }, { 0: "good" }, "Base: dp[0] = 2 — one house, rob it.");
+    dp.push(Math.max(nums[0], nums[1]));
+    mk({ 1: "hl" }, { 1: "good" }, "Base: dp[1] = max(2, 7) = 7 — first two houses, take the better one.");
+    for (let i = 2; i < n; i++) {
+      const skip = dp[i - 1], rob = dp[i - 2] + nums[i];
+      dp.push(Math.max(skip, rob));
+      const hd = {}; hd[i - 1] = "hl"; hd[i - 2] = "hl"; hd[i] = "good";
+      const hn = {}; hn[i] = "hl";
+      mk(hn, hd,
+        `dp[${i}] = max( skip = dp[${i - 1}] = ${skip},&nbsp; rob = dp[${i - 2}] + ${nums[i]} = ${rob} ) = <strong>${dp[i]}</strong>. The transition reads only the two highlighted cells — remember that.`);
+    }
+    const fin = {}; fin[n - 1] = "good";
+    mk(null, fin,
+      `Answer: dp[4] = ${dp[n - 1]} (rob houses 2, 9, 1). And because every cell read only dp[i&#8722;1] and dp[i&#8722;2], the whole table collapses to two rolling variables — O(1) space, the squeeze.`);
+    Viz.player("viz-robber", { caption: "House Robber on [2, 7, 9, 3, 1] — the table fills in dependency order", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>The space squeeze: rolling variables</h2>
+  <p>Look at the transition: <code>dp[i]</code> reads only <code>dp[i-1]</code> and <code>dp[i-2]</code>. The rest of the table is dead weight — keep two variables:</p>
+  <pre><code>def rob(nums):
+    prev2, prev1 = 0, 0                 # best up to i-2, i-1
+    for x in nums:
+        prev2, prev1 = prev1, max(prev1, prev2 + x)
+    return prev1</code></pre>
+  <p><strong>O(n) time, O(1) space</strong> — and this squeeze is mechanical: <em>whenever the transition looks back a bounded distance, the table collapses to that many variables.</em> (2-D tables similarly collapse to one or two rows — Lesson 0036.) Delivering the O(n)-table version, then squeezing it live when asked, is a rehearsed interview beat: rehearse it.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>An RNN is a rolling-variable DP: the hidden state carries exactly what the future needs from the entire past, in bounded space — <code>prev1/prev2</code> generalized to a learned vector. And the memoization↔tabulation duality mirrors eager vs. graph execution in ML frameworks: same computation, different evaluation order, different systems trade-offs.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">"House Robber" video</a>.</li>
+    <li>Problems: "House Robber", "House Robber II" (circular street — a clever reduction to two runs of today's function), "Maximum Product Subarray" (harder: the state needs BOTH max and min — why?).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Do the full sequence on House Robber without notes: memoized → tabulated → rolling. Time yourself; under 15 minutes total means this lesson stuck. Report the time to Claude Code.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0034-dp-memoization.html">← 0034 Memoization</a> · Next: <a href="./0036-dp-2d.html">0036 2-D DP →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Tabulation fills the table left-to-right (for 1-D DP) because…",
+    options: [
+      "each state's dependencies (earlier indices) must be computed before it — a topological order of the state DAG",
+      "Python lists append faster than they prepend",
+      "the answer always lives at index 0",
+      "left-to-right is required for the space squeeze"
+    ],
+    answer: 0,
+    explain: "dp[i] reads dp[i-1], dp[i-2] — they must exist first. 'Fill in dependency order' is Lesson 0030's topological sort applied to DP states. (Some 2-D DPs fill right-to-left or diagonally — the dependencies decide.)"
+  },
+  {
+    code: "dp[i] = max(dp[i-1], dp[i-2] + nums[i])",
+    prompt: "The two arguments of max represent…",
+    options: [
+      "skipping house i entirely vs. robbing it (which forbids house i−1)",
+      "robbing the odd-indexed vs. even-indexed houses",
+      "the first i−1 houses vs. the last i−1 houses",
+      "taking one house vs. taking two houses"
+    ],
+    answer: 0,
+    explain: "Every DP transition is a menu of last moves: don't-rob-i keeps dp[i-1]; rob-i pays nums[i] on top of dp[i-2] (the neighbor is out). Enumerate the last decision — that's how transitions are derived."
+  },
+  {
+    prompt: "The O(n)-table → O(1)-variables squeeze is possible exactly when…",
+    options: [
+      "the transition reads only a bounded window of recent states",
+      "the problem asks for a count rather than a maximum",
+      "the input array is sorted",
+      "n is small enough to fit in memory anyway"
+    ],
+    answer: 0,
+    explain: "Look-back of 2 → two variables. If dp[i] read arbitrary earlier states (e.g., Longest Increasing Subsequence reads ALL j < i), the table must stay. Check the transition's reach, then squeeze."
+  },
+  {
+    prompt: "In Python specifically, tabulation beats memoization for n = 100,000 because…",
+    options: [
+      "memoized recursion would blow the ~1000-frame recursion limit",
+      "dictionaries cannot hold 100,000 keys",
+      "loops are always asymptotically faster than recursion",
+      "lru_cache evicts entries above 10,000"
+    ],
+    answer: 0,
+    explain: "100k nested frames vs. a default cap of ~1000 → RecursionError (Lesson 0017). A loop has no such limit. Raising the limit works but risks C-stack crashes; mentioning this trade-off reads as real Python experience."
+  },
+  {
+    prompt: "Review from 0034: the two-property test for 'is this a DP problem?' is…",
+    options: [
+      "overlapping subproblems + the answer per state is a single value (count/optimum), not a list of paths",
+      "sorted input + a monotonic feasibility function",
+      "a grid + four directions of movement",
+      "n < 1000 + integer weights"
+    ],
+    answer: 0,
+    explain: "Overlap makes caching profitable; single-value-per-state makes it possible. (Option 2 is answer-space binary search's signature — Lesson 0015. Keeping signatures distinct IS pattern recognition.)"
+  }
+]);
+</script>
+</body>
+</html>

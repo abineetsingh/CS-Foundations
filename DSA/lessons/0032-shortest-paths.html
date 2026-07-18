@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0032 — Shortest Paths: BFS &amp; Dijkstra</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0032 · Phase 3 · ~30 minutes</span>
+  <h1>Shortest Paths: BFS &amp; Dijkstra</h1>
+  <p class="lede">Today's skill: pick the right shortest-path tool — BFS when steps count equally, Dijkstra's heap-driven BFS when edges have weights.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Dijkstra is the crown jewel of Phase 3 — the algorithm where graph + heap + greedy meet. It's a standard interview medium ("Network Delay Time," "Cheapest Flights"), the backbone of routing and planning, and conceptually: it's your Lesson 0020 BFS with one word changed — <em>nearest</em> replaces <em>fewest-hops</em>.</p>
+  </div>
+
+  <h2>Unweighted: BFS already solves it</h2>
+  <p>When every edge costs 1, BFS's levels ARE distances — first arrival is the shortest path (Lesson 0028 promised this; here's the payoff). Track distance with the level trick or store it alongside each node. <strong>O(V + E)</strong>, done. If a problem says "minimum number of steps/moves," you already own the answer — most "shortest path" interview questions are secretly this (word ladders, knight moves, maze escapes).</p>
+
+  <h2>Weighted: why BFS breaks, and the fix</h2>
+  <p>With weights, fewest-edges ≠ cheapest: A→B direct might cost 10 while A→C→B costs 3. BFS processes in <em>discovery order</em>; we need <em>cheapest-first</em> order. Replace the FIFO queue with a <strong>min-heap keyed on distance</strong> (Lesson 0023) — that's the entire conceptual delta:</p>
+  <pre><code>import heapq
+from collections import defaultdict
+
+def dijkstra(n, edges, src):                 # edges: (u, v, weight), directed
+    adj = defaultdict(list)
+    for u, v, w in edges:
+        adj[u].append((v, w))
+
+    dist = {}                                # final shortest distances
+    heap = [(0, src)]                        # (best-known cost, node)
+    while heap:
+        d, node = heapq.heappop(heap)        # cheapest unfinalized candidate
+        if node in dist:                     # stale entry — already finalized
+            continue
+        dist[node] = d                       # FINAL: nothing cheaper can come
+        for nb, w in adj[node]:
+            if nb not in dist:
+                heapq.heappush(heap, (d + w, nb))   # a candidate route to nb
+    return dist                              # unreachable nodes: absent</code></pre>
+  <p><strong>O(E log E)</strong> — each edge can push once; each pop costs log. (Stated as O(E log V) in textbooks; either is accepted with the reasoning.)</p>
+
+  <h2>Why greedy is safe here — the one argument to own</h2>
+  <p>When the heap pops node x at distance d, <em>every other candidate path costs ≥ d</em> (the heap says so), and — here's where weights matter — <strong>extending any path only makes it longer, because weights are non-negative</strong>. So no future route to x can beat d: finalize it. That's the invariant; it's also exactly why Dijkstra <em>fails with negative edges</em> — extending could then make paths cheaper, and early finalization becomes premature. (Negative weights → Bellman-Ford: relax all edges V−1 times, O(V·E). Know its name and when it's needed; implementing it is rarely asked.)</p>
+  <p>Two implementation notes that separate working code from almost-working code:</p>
+  <ul>
+    <li><strong>Lazy deletion</strong>: a node may sit in the heap several times (one per discovered route). The <code>if node in dist: continue</code> skip discards stale entries — simpler than updating heap entries in place (which heapq can't do).</li>
+    <li><strong>Finalization ≠ discovery</strong>: dist is written exactly once per node, at pop time — not at push time. Writing at push time is the classic subtle bug.</li>
+  </ul>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-dijkstra"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const cfg = { nodes: { A: [60, 110], B: [180, 45], C: [180, 175], D: [300, 110] },
+      edges: [["A","B","4"],["A","C","1"],["C","B","2"],["B","D","1"],["C","D","5"]],
+      directed: true, width: 380, height: 220 };
+    const fr = [
+      { nlabel: { A: "0" }, hl: { A: "hl" },
+        note: "Weighted edges: hop-counting BFS would call A&#8594;B (cost 4) better than A&#8594;C&#8594;B (cost 3). The heap fixes the ORDER. heap = [(0,A)]." },
+      { nlabel: { A: "0" }, hl: { A: "good" }, ehl: { "A-B": "hl", "A-C": "hl" },
+        note: "Pop (0,A) — FINALIZE dist[A] = 0 (green = final). Push candidate routes: (4,B), (1,C). heap = [(1,C), (4,B)]." },
+      { nlabel: { A: "0", C: "1" }, hl: { A: "good", C: "good" }, ehl: { "C-B": "hl", "C-D": "hl" },
+        note: "Pop (1,C) — the cheapest candidate ANYWHERE. Non-negative weights mean no future route can undercut it &#8594; FINALIZE dist[C] = 1. Push (1+2, B), (1+5, D). heap = [(3,B), (4,B), (6,D)]." },
+      { nlabel: { A: "0", C: "1", B: "3" }, hl: { A: "good", C: "good", B: "good" }, ehl: { "B-D": "hl" },
+        note: "Pop (3,B) — FINALIZE dist[B] = 3: the roundabout A&#8594;C&#8594;B beat the direct edge. Push (3+1, D). heap = [(4,B), (4,D), (6,D)]." },
+      { nlabel: { A: "0", C: "1", B: "3" }, hl: { A: "good", C: "good", B: "good" },
+        note: "Pop (4,B) — B is already finalized: this is a STALE entry from before the better route was found. <code>if node in dist: continue</code> — lazy deletion, skip." },
+      { nlabel: { A: "0", C: "1", B: "3", D: "4" }, hl: { A: "good", C: "good", B: "good", D: "good" },
+        ehl: { "A-C": "good", "C-B": "good", "B-D": "good" },
+        note: "Pop (4,D) — FINALIZE dist[D] = 4 via A&#8594;C&#8594;B&#8594;D. The leftover (6,D) will be skipped as stale. Every node finalized exactly once, in cheapest-first order — Dijkstra, complete." }
+    ];
+    Viz.player("viz-dijkstra", { caption: "Dijkstra from A — BFS replayed in cheapest-first order", view: Viz.graph(cfg), frames: fr });
+  })();
+  </script>
+
+  <h2>Choosing the tool</h2>
+  <table>
+    <tr><th>Situation</th><th>Tool</th><th>Cost</th></tr>
+    <tr><td>unweighted (or equal weights)</td><td>BFS</td><td><code>O(V + E)</code></td></tr>
+    <tr><td>non-negative weights</td><td>Dijkstra</td><td><code>O(E log V)</code></td></tr>
+    <tr><td>negative weights possible</td><td>Bellman-Ford (name it)</td><td><code>O(V·E)</code></td></tr>
+    <tr><td>≤ k stops / limited hops</td><td>modified BFS/Bellman-Ford ("Cheapest Flights")</td><td>—</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Dijkstra generalizes to <strong>A*</strong> — add a heuristic estimate of remaining cost to the heap key — which is the classic planning algorithm in robotics and games, and the conceptual ancestor of guided search in agents: beam search (Lesson 0023) is best-first search with a learned scorer and a width limit. "Explore the most promising frontier node first, where promising = cost so far + estimated cost to go" is a sentence that describes Dijkstra, A*, and a modern agent's tree search alike.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Advanced Graphs, "Network Delay Time" video</a>.</li>
+    <li>Problems: "Network Delay Time" (Dijkstra verbatim), "Path with Minimum Effort" (Dijkstra on a grid — Lessons 0029 + 0032), "Cheapest Flights Within K Stops".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Recite the greedy-safety argument to Claude Code from memory tomorrow — non-negativity is WHERE in the proof? If you can point at the exact sentence, you understand Dijkstra; if not, that's the gap to close before the problems.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0031-union-find.html">← 0031 Union-Find</a> · Next: <a href="./0033-minimum-spanning-trees.html">0033 MSTs →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Dijkstra is 'BFS with a heap' in the precise sense that…",
+    options: [
+      "the FIFO queue (oldest-first) becomes a min-heap (cheapest-first); the loop is otherwise the same shape",
+      "the heap stores the graph's edges instead of nodes",
+      "BFS runs once per node inside Dijkstra",
+      "the heap eliminates the need for a visited structure"
+    ],
+    answer: 0,
+    explain: "BFS's processing order is discovery order, which equals distance order only when all edges cost 1. The heap restores cheapest-first order under weights. (dist doubles as visited.)"
+  },
+  {
+    prompt: "Why do non-negative weights make it safe to finalize a node the moment it's popped?",
+    options: [
+      "all other candidates cost ≥ d, and extending paths can only add cost — nothing can undercut d later",
+      "the heap sorts nodes by degree, so popped nodes are leaf-like",
+      "non-negative weights guarantee the graph is acyclic",
+      "it isn't safe — Dijkstra re-checks each node twice"
+    ],
+    answer: 0,
+    explain: "Two facts combine: heap-minimality (everything else ≥ d now) + monotonicity (extensions never shrink). Negative edges break the second fact — and the algorithm with it."
+  },
+  {
+    code: "d, node = heapq.heappop(heap)\nif node in dist:\n    continue",
+    prompt: "This skip exists because…",
+    options: [
+      "a node can be pushed multiple times (once per route found); later pops of it are stale",
+      "heapq occasionally returns items out of order",
+      "nodes must be processed an even number of times",
+      "dist might contain nodes not in the graph"
+    ],
+    answer: 0,
+    explain: "heapq can't update-in-place, so improved routes push duplicates. First pop = cheapest = finalized; the rest are ghosts. 'Lazy deletion' — say the phrase, it reads as experience."
+  },
+  {
+    code: "\"Minimum number of knight moves from square A\nto square B on a chessboard.\"",
+    prompt: "The right tool is…",
+    options: [
+      "plain BFS — every move costs 1, and the board is an implicit graph",
+      "Dijkstra — chess distances are weighted",
+      "DFS with memoization",
+      "topological sort of the squares"
+    ],
+    answer: 0,
+    explain: "'Minimum number of moves' + uniform cost = BFS, with knight-move offsets as the DIRS list (Lesson 0029). Reaching for Dijkstra here is over-engineering — spotting that is also a skill."
+  },
+  {
+    prompt: "Review from 0031: DFS vs Union-Find for connectivity — Union-Find earns its keep when…",
+    options: [
+      "edges arrive over time with queries interleaved",
+      "the graph is static and traversed once",
+      "the graph is directed",
+      "memory is the binding constraint"
+    ],
+    answer: 0,
+    explain: "Dynamic connectivity: O(α) per event vs re-running O(V+E) DFS per query. Static one-shot: DFS is simpler. (And UF doesn't do directed reachability at all.)"
+  }
+]);
+</script>
+</body>
+</html>

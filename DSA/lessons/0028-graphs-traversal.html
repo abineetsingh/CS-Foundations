@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0028 — Graphs: Representation &amp; Traversal</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0028 · Phase 3 · ~30 minutes</span>
+  <h1>Graphs: Representation &amp; Traversal</h1>
+  <p class="lede">Today's skill: model relationships as an adjacency list, and traverse any graph with the DFS/BFS you already own — plus the one new ingredient: the visited set.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Graphs are the most general structure you'll learn — networks, dependencies, state spaces are all graphs. Trees were the training wheels: a tree is just a graph with no cycles and one parent each. Your DFS and BFS transfer nearly verbatim, which is why this lesson lands in days instead of weeks. For your long game: neural networks are literally computation graphs.</p>
+  </div>
+
+  <h2>Vocabulary + representation, in one block</h2>
+  <p><strong>Vertices</strong> (nodes) connected by <strong>edges</strong>; edges may be <strong>directed</strong> (one-way: follows, dependencies) or <strong>undirected</strong> (friendships); a graph may contain <strong>cycles</strong>. The workhorse representation is the <strong>adjacency list</strong> — each node maps to its neighbors:</p>
+  <pre><code>edges = [(0,1), (0,2), (1,2), (2,3)]        #   0 ── 1
+                                            #   │  ╱
+from collections import defaultdict         #   2 ──── 3
+adj = defaultdict(list)
+for u, v in edges:
+    adj[u].append(v)
+    adj[v].append(u)          # undirected: both ways (omit for directed)
+
+# adj = {0: [1,2], 1: [0,2], 2: [0,1,3], 3: [2]}</code></pre>
+  <p>Space O(V + E); iterating a node's neighbors costs only its degree. The alternative — an adjacency <em>matrix</em> (V×V grid) — answers "are u, v connected?" in O(1) but costs O(V²) space and O(V) to list neighbors; mention it, use it rarely. Interview problems hand you edge lists — <em>building adj is always your first move.</em></p>
+
+  <h2>Traversal = tree traversal + a visited set</h2>
+  <p>Trees couldn't loop back on you; graphs can. Without protection, a cycle traps DFS forever. The fix is one set:</p>
+  <pre><code>def dfs(node, adj, visited):
+    if node in visited:            # the ONLY new line vs. tree DFS
+        return
+    visited.add(node)
+    for neighbor in adj[node]:
+        dfs(neighbor, adj, visited)
+
+def bfs(start, adj):
+    visited = {start}              # mark on ENQUEUE, not on dequeue (see quiz)
+    q = deque([start])
+    while q:
+        node = q.popleft()
+        for nb in adj[node]:
+            if nb not in visited:
+                visited.add(nb)
+                q.append(nb)</code></pre>
+  <p>Each node enters once, each edge is examined once (twice undirected): <strong>O(V + E)</strong> time — the graph-traversal complexity you'll state twenty times in interviews. Everything from Lessons 0019–0020 carries: DFS for "explore/exists/combine," BFS for "nearest/levels" (BFS visits nodes in increasing distance from start — on unweighted graphs, first arrival IS the shortest path; that becomes Lesson 0032's foundation).</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-trav"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const cfg = { nodes: { A: [60, 70], B: [170, 40], C: [150, 150], D: [280, 90], E: [390, 60], F: [270, 185] },
+      edges: [["A","B"],["A","C"],["B","D"],["C","D"],["D","E"],["C","F"]], width: 450, height: 220 };
+    const adj = { A: ["B","C"], B: ["A","D"], C: ["A","D","F"], D: ["B","C","E"], E: ["D"], F: ["C"] };
+    function make(vals) {
+      const mode = vals.mode, fr = [];
+      const visited = new Set(["A"]), frontier = ["A"], done = {};
+      fr.push({ hl: { A: "hl" },
+        note: `${mode} from A. The ${mode === "BFS" ? "QUEUE (popleft: oldest first)" : "STACK (pop: newest first)"} starts as [A]; visited = {A} — the one new ingredient vs. trees.` });
+      while (frontier.length) {
+        const node = mode === "BFS" ? frontier.shift() : frontier.pop();
+        done[node] = "good";
+        const adds = [];
+        adj[node].forEach(nb => { if (!visited.has(nb)) { visited.add(nb); frontier.push(nb); adds.push(nb); } });
+        fr.push({ hl: Object.assign({}, done, (function(){const o={};o[node]="hl";return o;})()),
+          note: `${mode === "BFS" ? "popleft" : "pop"} <strong>${node}</strong> — visit. Discover ${adds.length ? adds.join(", ") : "nothing new (all neighbors already visited)"} → ${mode === "BFS" ? "queue" : "stack"} = [${frontier.join(", ") || "empty"}].` });
+      }
+      fr.push({ hl: Object.assign({}, done),
+        note: `${mode} visited ${mode === "BFS" ? "in rippling rings of distance from A — first arrival = shortest path (unweighted)" : "by diving down one branch and backing up — depth before breadth"}. Same loop; the container chose the algorithm. Now run the other one.` });
+      return fr;
+    }
+    Viz.runnable("viz-trav", { caption: "traverse the same graph both ways — the container IS the algorithm",
+      controls: [{ key: "mode", label: "algorithm", type: "select", value: "BFS", options: ["BFS", "DFS"] }],
+      make: make, view: Viz.graph(cfg) });
+  })();
+  </script>
+
+  <h2>The starter application: connected components</h2>
+  <p><em>How many separate friend-groups in this network?</em> Traverse from every unvisited node; each launch discovers one whole component:</p>
+  <pre><code>def count_components(n, adj):
+    visited = set()
+    count = 0
+    for node in range(n):          # every node gets a chance…
+        if node not in visited:    # …but only unvisited ones start a flood
+            dfs(node, adj, visited)
+            count += 1             # one launch = one component
+    return count</code></pre>
+  <p>The loop-over-all-starts wrapper matters beyond this problem: graphs (unlike trees) have no root, so <em>coverage requires trying every node</em>. This wrapper reappears in every "for the whole graph" question.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>A neural network's forward pass is a directed graph of operations — PyTorch builds it dynamically as your code runs, then walks it backward for gradients. Knowledge graphs, GNNs passing messages along edges (Lesson 0022's aggregation, generalized), agent state-spaces where nodes are world-states and edges are actions: the graph abstraction is arguably the single most load-bearing one in AI. You now hold its two fundamental algorithms.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Graph intro + adjacency list chapters</a>.</li>
+    <li>Problems: "Number of Connected Components in an Undirected Graph", "Find if Path Exists in Graph".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Convert three problems' edge lists to adjacency lists by hand this week — the translation must become mechanical. Directed vs undirected trips everyone once; ask Claude Code for a drill if it trips you twice.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0027-backtracking-ii.html">← 0027 Backtracking II</a> · Next: <a href="./0029-grid-graphs.html">0029 Grid Graphs →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Tree DFS needed no visited set, but graph DFS dies without one, because…",
+    options: [
+      "cycles (and multiple paths to a node) let traversal revisit nodes forever",
+      "graphs have more nodes than trees",
+      "graph edges are stored in dicts, which require set lookups",
+      "trees are traversed bottom-up instead"
+    ],
+    answer: 0,
+    explain: "A tree's child has exactly one route in — no revisits possible. Any cycle (0→1→2→0) recurses forever unguarded. The visited set makes 'each node once' true again."
+  },
+  {
+    prompt: "Graph traversal is O(V + E) rather than O(V · E) because…",
+    options: [
+      "each node is processed once, and each edge is examined a constant number of times",
+      "E is always smaller than V",
+      "the visited set deduplicates edges",
+      "adjacency lists sort neighbors for early exit"
+    ],
+    answer: 0,
+    explain: "Work = one visit per node + one look per edge-end. Sum, don't multiply (Lesson 0001's rule 1 — sequential contributions add). For sparse graphs E ≈ V; dense, E ≈ V²."
+  },
+  {
+    code: "# BFS variant: mark visited on DEQUEUE\nnode = q.popleft()\nif node in visited: continue\nvisited.add(node)",
+    prompt: "This still terminates — but what's the flaw vs. marking on enqueue?",
+    options: [
+      "a node can be enqueued many times before its first dequeue, bloating the queue",
+      "it visits nodes in the wrong order",
+      "it skips nodes with multiple parents",
+      "nothing — the two are fully equivalent"
+    ],
+    answer: 0,
+    explain: "Between discovery and processing, other neighbors re-enqueue the same node — the queue can swell to O(E). Marking at enqueue caps it at O(V). Same answers, worse constants — and interviewers do notice."
+  },
+  {
+    code: "edges = [(0,1), (1,2)]\nadj = defaultdict(list)\nfor u, v in edges:\n    adj[u].append(v)     # directed build\n\n# question: can dfs(2) reach 0?",
+    prompt: "The answer, and why:",
+    options: [
+      "no — edges point 0→1→2; nothing points out of 2",
+      "yes — DFS follows edges in both directions",
+      "yes — defaultdict adds reverse edges automatically",
+      "no — node 2 isn't in adj, so DFS crashes"
+    ],
+    answer: 0,
+    explain: "Directed adjacency stores one direction only. adj[2] is an empty list (defaultdict's gift — no crash), so DFS from 2 visits {2} and stops. Always confirm directedness before building."
+  },
+  {
+    prompt: "Review from 0027: in Word Search, restoring board[r][c] after exploring implements visited-ness scoped to…",
+    options: [
+      "the current path only — sibling paths may reuse the cell",
+      "the entire search permanently",
+      "one row of the board",
+      "the first k characters of the word"
+    ],
+    answer: 0,
+    explain: "Backtracking's visited is temporary (paths mustn't self-cross); traversal's visited set is permanent (each node once, ever). TODAY'S subtlety: know which kind your problem needs."
+  }
+]);
+</script>
+</body>
+</html>

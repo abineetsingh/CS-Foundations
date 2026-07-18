@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0034 — DP I: Memoization</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0034 · Phase 4 · ~30 minutes</span>
+  <h1>Dynamic Programming I: Memoization</h1>
+  <p class="lede">Today's skill: spot overlapping subproblems, and collapse an exponential recursion to linear with a cache — DP demystified as "recursion + memory."</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>DP has the scariest reputation of any interview topic, and the reputation is a lie. You already know recursion's three checks (Lesson 0017); memoization adds a dictionary (Lesson 0005). That's the entire entry fee. DP problems dominate the hard end of interview loops — and your two-phase foundation was built precisely so this lesson would feel small.</p>
+  </div>
+
+  <h2>The disease: overlapping subproblems</h2>
+  <pre><code>def fib(n):                        # correct by the three checks — and doomed
+    if n &lt;= 1: return n
+    return fib(n - 1) + fib(n - 2)
+
+fib(5)
+├─ fib(4)
+│   ├─ fib(3)  ←──────┐
+│   └─ fib(2)  ←──┐   │  computed AGAIN
+└─ fib(3)  ────────│───┘
+    ├─ fib(2) ─────┘      …and again
+    └─ fib(1)</code></pre>
+  <p>The recursion tree has ~2ⁿ nodes but only <em>n distinct inputs</em> — the same subproblems recomputed exponentially many times. fib(40) ≈ a billion calls for 40 facts. Contrast merge sort (Lesson 0018): its subproblems are all <em>different</em> slices, so there's nothing to reuse. <strong>Overlap is the diagnostic</strong> — no overlap, no DP.</p>
+
+  <h2>The cure: cache by input</h2>
+  <pre><code>def fib(n, memo={}):                   # or: pass memo explicitly
+    if n in memo:  return memo[n]      # ← seen this exact subproblem? done.
+    if n &lt;= 1:     return n
+    memo[n] = fib(n - 1, memo) + fib(n - 2, memo)
+    return memo[n]</code></pre>
+  <p>Each distinct input computed once, O(1) dict ops around it: <strong>O(n) time, O(n) space</strong> (cache + recursion depth). Exponential → linear by adding three lines. Python even ships the pattern (mention it, then hand-roll in interviews):</p>
+  <pre><code>from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n):
+    if n &lt;= 1: return n
+    return fib(n - 1) + fib(n - 2)</code></pre>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-memo"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    let seq = 0;
+    function build(n) {
+      const node = { id: "n" + (seq++), v: "f" + n, n: n, children: [] };
+      if (n > 1) node.children = [build(n - 1), build(n - 2)];
+      return node;
+    }
+    const root = build(5);
+    const view = Viz.tree({ root: root, gapX: 40, gapY: 50 });
+    const fr = [{ note: "The FULL naive call tree of fib(5): 15 calls for only 6 distinct inputs — the overlap, visible. Now run it WITH a memo and watch cache hits amputate subtrees." }];
+    const memo = {}, state = {}, badges = {}, dims = [];
+    function desc(nd, out) { nd.children.forEach(c => { out.push(c.id); desc(c, out); }); return out; }
+    function snap(note) {
+      fr.push({ hl: Object.assign({}, state), dim: dims.slice(), badge: Object.assign({}, badges), note: note });
+    }
+    (function walk(nd) {
+      if (memo[nd.n] !== undefined) {
+        state[nd.id] = "good";
+        dims.push.apply(dims, desc(nd, []));
+        snap(`fib(${nd.n}): CACHE HIT &#8594; ${memo[nd.n]}, O(1). The entire subtree below it never executes (faded) — that's the exponential work vanishing.`);
+        return memo[nd.n];
+      }
+      if (nd.n <= 1) {
+        memo[nd.n] = nd.n; state[nd.id] = "hl"; badges[nd.id] = "=" + nd.n;
+        snap(`fib(${nd.n}): base case &#8594; ${nd.n}. Cached.`);
+        return nd.n;
+      }
+      const a = walk(nd.children[0]), b = walk(nd.children[1]);
+      memo[nd.n] = a + b; state[nd.id] = "hl"; badges[nd.id] = "=" + (a + b);
+      snap(`fib(${nd.n}) = ${a} + ${b} = ${a + b} — computed ONCE, then cached. Every future request is a hit.`);
+      return a + b;
+    })(root);
+    fr.push({ hl: Object.assign({}, state), dim: dims.slice(), badge: Object.assign({}, badges),
+      note: "9 evaluations instead of 15 calls — and the gap explodes with n: fib(40) memoized is ~79 steps; naive is ~1,000,000,000. Same three checks, plus a dictionary." });
+    Viz.player("viz-memo", { caption: "fib(5) with a memo — cache hits prune the exponential tree", view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>The method — four questions that solve DP problems</h2>
+  <p><em>Climbing Stairs: n steps, climb 1 or 2 at a time — how many distinct ways up?</em></p>
+  <ol>
+    <li><strong>State</strong> — what identifies a subproblem? <em>The step you're standing on.</em> <code>ways(i)</code> = ways to reach the top from step i.</li>
+    <li><strong>Transition</strong> — how do states relate? Your last move was +1 or +2: <code>ways(i) = ways(i+1) + ways(i+2)</code>.</li>
+    <li><strong>Base cases</strong> — <code>ways(n) = 1</code> (arrived), <code>ways(&gt;n) = 0</code> (overshot).</li>
+    <li><strong>Cache</strong> — memoize on i. Done: O(n).</li>
+  </ol>
+  <p>These four questions are the <em>entire</em> craft — every DP lesson from here refines them. Notice the deep connection: this is backtracking's decision tree (Lesson 0026) where paths <em>reconverge</em> — count the ways through a DAG of states instead of enumerating each path separately. Backtracking lists paths (can't be cached — each path is distinct output); DP counts/optimizes over them (cacheable — only the best/total per state matters). That distinction tells you which tool a problem wants.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>The KV cache is memoization, verbatim: attention keys/values for a prefix are a pure function of that prefix, so cache them instead of recomputing per token (Lesson 0005's foreshadowing, now formal). Same idea scaled down in <code>lru_cache</code> on a tokenizer, scaled up in prompt caching across requests. "Pure function + repeated inputs → cache" is one of computing's few universal moves, and you now own its theory.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">1-D DP, "Climbing Stairs" video</a>.</li>
+    <li>Problems: "Climbing Stairs", "Min Cost Climbing Stairs" (same state, min instead of sum — feel the four questions carry over), "House Robber" (attempt top-down; next lesson does it bottom-up).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>For every DP problem this phase, write the four answers (state / transition / bases / cache) as comments BEFORE any code. If question 1 stalls you, that's the discussion to have with Claude Code — state design is the real skill, and it's coachable.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0033-minimum-spanning-trees.html">← 0033 MSTs</a> · Next: <a href="./0035-dp-tabulation.html">0035 DP: Tabulation →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Memoization helps fib but NOT merge sort because…",
+    options: [
+      "fib's subproblems repeat; merge sort's are all distinct — nothing is ever recomputed",
+      "merge sort's subproblems are too large to store",
+      "lists can't be dictionary keys, so merge sort can't be cached",
+      "merge sort is already O(n)"
+    ],
+    answer: 0,
+    explain: "Caching pays only for cache HITS. Overlapping subproblems is the diagnostic property — check for it before reaching for DP. (The list-key point is real but incidental.)"
+  },
+  {
+    prompt: "Memoized fib is O(n) time because…",
+    options: [
+      "each of the n distinct inputs is computed once; all other calls are O(1) cache hits",
+      "the dictionary sorts the inputs for binary search",
+      "the recursion tree becomes balanced",
+      "Python optimizes repeated function calls"
+    ],
+    answer: 0,
+    explain: "Count distinct states × work per state: n states × O(1) = O(n). This 'states × transition cost' formula prices EVERY DP algorithm — remember it."
+  },
+  {
+    code: "\"Count the ways to climb n stairs\ntaking 1, 2, or 3 steps at a time.\"",
+    prompt: "The four-question analysis gives…",
+    options: [
+      "state: current step; transition: ways(i) = ways(i+1) + ways(i+2) + ways(i+3); O(n)",
+      "state: (step, last move); transition over pairs; O(n²)",
+      "state: remaining steps mod 3; three states total; O(1)",
+      "no valid DP — the moves overlap"
+    ],
+    answer: 0,
+    explain: "One more branch in the transition, same state, same O(n). Feeling this as 'trivial variation' rather than 'new problem' is what the four questions buy you."
+  },
+  {
+    prompt: "'Print every distinct way to climb the stairs' vs 'count the ways' — the first can't use DP's speedup because…",
+    options: [
+      "the output itself is exponential — each path must be materialized, so caching can't help",
+      "printing breaks referential transparency",
+      "paths can't be counted without generating them",
+      "it can — memoize the printed strings"
+    ],
+    answer: 0,
+    explain: "DP compresses many paths into one number/optimum per state. If the answer IS the list of paths, no compression is possible — that's backtracking's territory (Lesson 0026). Output size lower-bounds everything."
+  },
+  {
+    prompt: "Review from 0033: Kruskal's algorithm is, in one phrase…",
+    options: [
+      "sort edges, then greedily union unless a cycle would form",
+      "grow a tree from a seed via a heap of frontier edges",
+      "repeatedly delete the heaviest edge on any cycle",
+      "run Dijkstra from every node and merge results"
+    ],
+    answer: 0,
+    explain: "Sorting (0016) + Union-Find (0031) + a greedy proof. Option 2 is Prim's; option 3 is the (valid but slow) reverse-delete curiosity."
+  }
+]);
+</script>
+</body>
+</html>

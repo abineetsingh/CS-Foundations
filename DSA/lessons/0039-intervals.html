@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0039 — Intervals</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0039 · Phase 4 · ~25 minutes</span>
+  <h1>Intervals: Sort, Then Sweep</h1>
+  <p class="lede">Today's skill: the interval playbook — sort by start (or end), sweep once, and reason about exactly one thing: overlap.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Intervals are a small, closed world: five or so canonical problems cover nearly every interview appearance, all solved by one sorted sweep. Calendar systems, resource booking, and rate limiting are intervals in production — this pattern earns its keep beyond interviews faster than most.</p>
+  </div>
+
+  <h2>The one geometric fact</h2>
+  <pre><code>a = [1, 5]   b = [4, 8]     overlap ⇔ a.start ≤ b.end AND b.start ≤ a.end
+      ├────a────┤
+           ├──────b───┤     equivalently, NOT (a ends before b starts
+                                              OR b ends before a starts)</code></pre>
+  <p>Write this check without thinking. Off-by-one alert: decide early whether touching intervals ([1,5], [5,8]) count as overlapping — problems differ, and the ≤ vs &lt; follows from that decision.</p>
+
+  <h2>Canonical problem 1: Merge Intervals</h2>
+  <p><em>Coalesce all overlapping intervals.</em> Sorting by start (Lesson 0016's "buy structure") makes overlap purely a <em>neighbor</em> affair — each interval can only merge with the one growing block before it:</p>
+  <pre><code>def merge(intervals):
+    intervals.sort(key=lambda iv: iv[0])          # by start
+    result = [intervals[0]]
+    for start, end in intervals[1:]:
+        last = result[-1]
+        if start &lt;= last[1]:                      # overlaps the growing block:
+            last[1] = max(last[1], end)           #   extend it (max: containment!)
+        else:
+            result.append([start, end])           # gap: start a new block
+    return result</code></pre>
+  <p>O(n log n) for the sort, O(n) sweep. The <code>max</code> guards against contained intervals ([1,10] then [2,3] — the block's end must not shrink). Without the sort, every pair must be compared: O(n²) and fiddly; with it, one look-back suffices. That's the entire playbook: <strong>sort so that only adjacent things interact, then sweep with O(1) state.</strong></p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-mergeiv"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const iv = [[1, 5], [2, 4], [7, 9], [8, 12], [13, 14]];
+    const fr = [], merged = [];
+    function bars(cur) {
+      const bs = [];
+      merged.forEach(b => bs.push({ lo: b[0], hi: b[1], row: 0, cls: "good", label: b[0] + "&#8211;" + b[1] }));
+      iv.forEach((x, i) => bs.push({ lo: x[0], hi: x[1], row: i + 1,
+        cls: i === cur ? "hl" : (i < cur ? "dim" : ""), label: x[0] + "&#8211;" + x[1] }));
+      return bs;
+    }
+    fr.push({ min: 0, max: 15, rows: 6, bars: bars(-1),
+      note: "Five intervals, already sorted by start (top to bottom). The top row will hold the merged blocks. Sweep down." });
+    iv.forEach(function (x, i) {
+      const last = merged[merged.length - 1];
+      if (!last || x[0] > last[1]) {
+        merged.push([x[0], x[1]]);
+        fr.push({ min: 0, max: 15, rows: 6, bars: bars(i),
+          note: `[${x[0]},${x[1]}]: ${last ? `starts after the block ends (${x[0]} &gt; ${last[1]}) — GAP.` : "the first interval."} Start a new block.` });
+      } else {
+        const old = last[1];
+        last[1] = Math.max(last[1], x[1]);
+        fr.push({ min: 0, max: 15, rows: 6, bars: bars(i),
+          note: `[${x[0]},${x[1]}]: starts at ${x[0]} &#8804; block end ${old} — OVERLAP. Extend the block to max(${old}, ${x[1]}) = ${last[1]}.${x[1] < old ? " (Contained interval — the max just saved the block from SHRINKING.)" : ""}` });
+      }
+    });
+    fr.push({ min: 0, max: 15, rows: 6, bars: bars(iv.length),
+      note: "Merged: [1,5] [7,12] [13,14]. Sorting made overlap a strictly NEIGHBOR affair — one look-back per interval. O(n log n) sort + O(n) sweep." });
+    Viz.player("viz-mergeiv", { caption: "Merge Intervals on a timeline — extend the block, or start a new one", view: Viz.spans, frames: fr });
+  })();
+  </script>
+
+  <h2>Canonical problem 2: Meeting Rooms II (how many rooms?)</h2>
+  <p><em>Minimum rooms so no two overlapping meetings share one.</em> Insight: the answer is the <strong>maximum number of meetings simultaneously in progress</strong>. Split starts and ends into two sorted streams and sweep time:</p>
+  <pre><code>def min_rooms(intervals):
+    starts = sorted(iv[0] for iv in intervals)
+    ends   = sorted(iv[1] for iv in intervals)
+    rooms = best = 0
+    s = e = 0
+    while s &lt; len(starts):
+        if starts[s] &lt; ends[e]:      # a meeting starts before the earliest end:
+            rooms += 1               #   +1 concurrent
+            s += 1
+        else:                        # earliest-ending meeting finishes first:
+            rooms -= 1               #   a room frees up
+            e += 1
+        best = max(best, rooms)
+    return best</code></pre>
+  <p>Two pointers (Lesson 0006) over two sorted streams — a k=2 merge (Lesson 0024)! The alternative implementation keeps a min-heap of end times (push each meeting, pop all that ended); same O(n log n), and naming both is a flex. This <em>sweep-line</em> idea — walk time, +1 on start, −1 on end, track the running level — generalizes to skyline problems, CPU load, concurrent-users questions.</p>
+
+  <h2>The playbook, tabulated</h2>
+  <table>
+    <tr><th>Problem</th><th>Sort by</th><th>Sweep state</th></tr>
+    <tr><td>Merge Intervals</td><td>start</td><td>the growing last block</td></tr>
+    <tr><td>Insert Interval</td><td>(already sorted)</td><td>before / overlapping / after phases</td></tr>
+    <tr><td>Max non-overlapping set (0038!)</td><td><strong>end</strong></td><td>last chosen end</td></tr>
+    <tr><td>Min intervals to remove</td><td>end</td><td>n − max non-overlapping</td></tr>
+    <tr><td>Meeting rooms / max concurrency</td><td>starts &amp; ends separately</td><td>running +1/−1 level</td></tr>
+  </table>
+  <p>Notice the split: <em>merging</em> questions sort by start; <em>selection</em> questions sort by end (Lesson 0038's exchange argument). If you're unsure which, ask what the sweep must guarantee about the past — merging needs "blocks are complete," selection needs "maximum future room."</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>GPU cluster schedulers solve meeting-rooms daily: jobs are intervals over devices, and max-concurrency = required capacity. Sliding-window rate limiters (Lesson 0044 builds one!) count requests in a time interval; audio/video ML pipelines merge detection intervals ("speech from 0:03–0:07") exactly like merge().</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson — Phase 4 milestone</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Intervals section</a>.</li>
+    <li>Problems: "Merge Intervals", "Insert Interval", "Non-overlapping Intervals", "Meeting Rooms II" (premium; free twin: "Minimum Number of Arrows to Burst Balloons").</li>
+    <li><strong>Milestone check</strong> (after 0040): derive a DP recurrence for an unseen medium — try "Longest Increasing Subsequence" cold, four questions and all. Report to Claude Code.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>The touching-intervals convention (≤ vs &lt;) causes more interval bugs than everything else combined. Before coding each problem, state the convention aloud. Claude Code can generate edge-case tests (touching, contained, identical intervals) for any solution you bring.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0038-greedy.html">← 0038 Greedy</a> · Next: <a href="./0040-bit-manipulation.html">0040 Bits →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Sorting by start makes merging a neighbors-only affair because…",
+    options: [
+      "any interval overlapping the current one must start before it ends — and sorted order surfaces those adjacently, absorbed into the growing block",
+      "sorted intervals cannot contain one another",
+      "the longest interval always sorts first",
+      "sorting removes duplicate intervals"
+    ],
+    answer: 0,
+    explain: "After sorting, if the next interval doesn't reach the current block, nothing later can either (they start even further right). One look-back suffices — O(n²) pair-checking collapses to O(n)."
+  },
+  {
+    code: "if start <= last[1]:\n    last[1] = end        # ← missing max()",
+    prompt: "Which input exposes this bug?",
+    options: [
+      "[[1,10], [2,3]] — the block's end shrinks from 10 to 3",
+      "[[1,2], [3,4]] — disjoint intervals get merged",
+      "[[1,5], [5,8]] — touching intervals crash",
+      "[[2,3], [1,10]] — unsorted input"
+    ],
+    answer: 0,
+    explain: "[2,3] is CONTAINED in [1,10]; overwriting the end truncates the block, corrupting every later merge decision. max(last[1], end) handles containment. Contained intervals are THE interval edge case."
+  },
+  {
+    prompt: "Meeting Rooms II's insight — min rooms = max simultaneous meetings — holds because…",
+    options: [
+      "rooms are interchangeable: peak concurrency is both necessary (those meetings truly collide) and sufficient (reuse freed rooms greedily)",
+      "meetings sorted by end time never overlap",
+      "each meeting conflicts with at most one other",
+      "the sum of durations divided by the day length gives the answer"
+    ],
+    answer: 0,
+    explain: "Necessity: at the peak moment, that many meetings physically coexist. Sufficiency: assign any freed room to the next meeting. Lower bound meets construction — the cleanest kind of proof."
+  },
+  {
+    code: "\"Remove the fewest intervals so the rest\ndon't overlap.\"",
+    prompt: "The reduction is…",
+    options: [
+      "n minus the maximum non-overlapping set — which is the sort-by-END greedy from Lesson 0038",
+      "merge all intervals and count the blocks",
+      "sort by length and remove the longest first",
+      "a 2-D DP over interval pairs"
+    ],
+    answer: 0,
+    explain: "Keep as many as possible ⇔ remove as few as possible. The keep-side is interval scheduling (earliest-end greedy, exchange-argument-approved). Recognizing complements is free problem-solving."
+  },
+  {
+    prompt: "Review from 0038: the two-minute procedure before trusting any greedy is…",
+    options: [
+      "attack it with small counterexamples; if it survives, articulate an exchange or frontier argument; if it breaks, use DP",
+      "run it on the given examples; matching output means correct",
+      "check whether the input is sorted",
+      "compare its runtime against the DP version"
+    ],
+    answer: 0,
+    explain: "Attack, then justify, then fall back. Sample-passing proves nothing — the [1,15,25] greedy passes plenty of amounts before failing at 30."
+  }
+]);
+</script>
+</body>
+</html>

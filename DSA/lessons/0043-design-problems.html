@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0043 — Design Problems</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0043 · Phase 5 · ~30 minutes</span>
+  <h1>Design Problems: Composing Structures to Hit Complexity Targets</h1>
+  <p class="lede">Today's skill: the "design a class where every operation must be O(…)" genre — solved by composing two structures that cover each other's weaknesses.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Design questions are the closest LeetCode gets to real engineering, which is why AI labs favor them — LRU Cache is quite possibly the single most-asked interview question at infrastructure-heavy companies. The skill is new: not finding an algorithm, but <em>composing data structures</em> so every required operation hits its complexity budget.</p>
+  </div>
+
+  <h2>The genre's one insight</h2>
+  <p>No single structure does everything (Lesson 0021's table said so). But requirements like "O(1) lookup AND O(1) ordering maintenance" decompose: <strong>use two structures, each covering one requirement, kept in sync</strong>. The design work is choosing the pair and defining the sync discipline.</p>
+
+  <h2>Worked: LRU Cache (the boss question)</h2>
+  <p><em>Fixed capacity; <code>get(key)</code> and <code>put(key, value)</code> both O(1); on overflow, evict the least-recently-used item.</em></p>
+  <p>Requirements → structures: O(1) key lookup screams <em>hash map</em> (0005); "recency order with O(1) move-to-front and evict-from-back" screams <em>doubly linked list</em> (0012, plus prev pointers). Neither alone suffices; wired together they do — <strong>the map's values are pointers to list nodes</strong>:</p>
+  <pre><code>class Node:
+    def __init__(self, key, val):
+        self.key, self.val = key, val
+        self.prev = self.next = None
+
+class LRUCache:
+    def __init__(self, capacity):
+        self.cap = capacity
+        self.map = {}                          # key → Node
+        self.head = Node(0, 0)                 # dummy MRU end (0012's armor, ×2)
+        self.tail = Node(0, 0)                 # dummy LRU end
+        self.head.next, self.tail.prev = self.tail, self.head
+
+    def _unlink(self, node):
+        node.prev.next, node.next.prev = node.next, node.prev
+
+    def _push_front(self, node):               # mark as most-recent
+        node.next, node.prev = self.head.next, self.head
+        self.head.next.prev = node
+        self.head.next = node
+
+    def get(self, key):
+        if key not in self.map:
+            return -1
+        node = self.map[key]
+        self._unlink(node); self._push_front(node)     # touching = refreshing
+        return node.val
+
+    def put(self, key, value):
+        if key in self.map:
+            self._unlink(self.map[key])
+        node = Node(key, value)
+        self.map[key] = node
+        self._push_front(node)
+        if len(self.map) &gt; self.cap:
+            lru = self.tail.prev                # least-recent lives at the back
+            self._unlink(lru)
+            del self.map[lru.key]               # node stores key for THIS line</code></pre>
+  <p>Every operation: a dict op + a few pointer rewires — all O(1). Three design details worth narrating in an interview: <em>why doubly</em> linked (unlinking needs the predecessor in O(1)); <em>why nodes store keys</em> (eviction must delete from the map); <em>why two dummies</em> (no head/tail special cases — Lesson 0012's trick, doubled). In production you'd say <code>OrderedDict</code> or <code>functools.lru_cache</code> — name them, then build it anyway; the building is the question.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-lru"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const view = Viz.group(Viz.sub("lane", Viz.array), Viz.sub("map", Viz.kv));
+    function L(items, hl) {
+      return { rows: [{ label: "MRU &#8594; LRU", noIdx: true,
+        cells: items.length ? items.map((x, i) => i === hl ? { v: x, cls: "hl" } : x) : [{ v: "", cls: "ghost" }] }] };
+    }
+    function M(pairs, hlK) {
+      return { label: "map", pairs: pairs.map(p => p.k === hlK ? { k: p.k, v: p.v, cls: "hl" } : p) };
+    }
+    const fr = [
+      { lane: L([]), map: M([]),
+        note: "LRUCache(capacity = 2). The list lane tracks recency (most-recent on the LEFT); the map teleports to any node in O(1). Two structures, one gap each — wired together." },
+      { lane: L(["a:1"], 0), map: M([{ k: "a", v: "&#8226;" }], "a"),
+        note: "put(a, 1): create the node, push_front, map[a] &#8594; node. BOTH structures updated — the sync discipline starts here." },
+      { lane: L(["b:2", "a:1"], 0), map: M([{ k: "a", v: "&#8226;" }, { k: "b", v: "&#8226;" }], "b"),
+        note: "put(b, 2): b enters most-recent. Size 2 = capacity — the cache is full; the next insert must evict." },
+      { lane: L(["a:1", "b:2"], 0), map: M([{ k: "a", v: "&#8226;" }, { k: "b", v: "&#8226;" }], "a"),
+        note: "get(a): the map jumps straight to a's node; unlink + push_front — touching REFRESHES. Note the quiet consequence: b just became least-recent." },
+      { lane: L(["a:1", "b:2"], 1), map: M([{ k: "a", v: "&#8226;" }, { k: "b", v: "&#8226;" }], "b"),
+        note: "put(c, 3) — over capacity. Evict tail.prev = b's node. The node CARRIES its key, so <code>del map[b]</code> is O(1) — the sync detail everyone forgets." },
+      { lane: L(["c:3", "a:1"], 0), map: M([{ k: "a", v: "&#8226;" }, { k: "c", v: "&#8226;" }], "c"),
+        note: "b is gone from BOTH structures; c enters at the front. a survived the eviction because get(a) refreshed it — recency in action. Every op was a dict hop + pointer rewires: O(1)." }
+    ];
+    Viz.player("viz-lru", { caption: "LRU cache (capacity 2): put a, put b, get a, put c — watch the eviction choose", view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>The same insight, twice more (recognition level)</h2>
+  <ul>
+    <li><strong>Min Stack</strong> — O(1) push/pop/min: a stack, plus a <em>parallel stack of running minimums</em>. Two structures moving in lockstep; the second answers the query the first can't.</li>
+    <li><strong>Insert/Delete/GetRandom O(1)</strong> — dict + list: dict maps value→index; random picks from the list; deletion swaps the target with the <em>last</em> element then pops (O(1) — the swap-with-last trick, worth knowing by name).</li>
+  </ul>
+  <p>The interview procedure: <em>write each required operation with its budget → pick a structure per requirement → define what "in sync" means → walk every operation proving both structures stay in sync and on budget.</em> Sync discipline is where bugs live (e.g., forgetting the map-delete on eviction) — state it explicitly.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>LRU is not an exercise — it's THE cache policy: CPU caches, OS page tables, CDN edges, and yes, LLM inference: prefix/prompt caches evict least-recently-used entries, and vLLM's KV-cache block manager is an LRU-flavored allocator (Lesson 0012's PagedAttention thread, completed). You will build or debug a cache in your first year at any infra-adjacent AI job. This lesson is that, miniaturized.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">"LRU Cache" video</a> — after building it yourself from this lesson's skeleton.</li>
+    <li>Problems: "Min Stack", "LRU Cache" (from scratch, twice this week — it must become automatic), "Insert Delete GetRandom O(1)".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Rebuild LRU from a blank file tomorrow, narrating the three design details. Claude Code can inject the classic bugs (missing map-delete, single dummy, unlink-order mistakes) into a working version for you to find — debugging drills build the same muscle faster.</p>
+  </div>
+
+  <div class="lesson-footer">
+    <a href="./0042-python-toolkit.html">← 0042 Python Toolkit</a> · Next: <a href="./0044-ai-lab-practical.html">0044 AI-Lab Practical →</a>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "LRU Cache needs BOTH a hash map and a doubly linked list because…",
+    options: [
+      "the map gives O(1) lookup but no order; the list gives O(1) reordering but no lookup — each covers the other's gap",
+      "two structures provide redundancy if one corrupts",
+      "the list stores values too large for the map",
+      "Python dicts cannot hold more than capacity entries"
+    ],
+    answer: 0,
+    explain: "Requirement decomposition: lookup → map; recency order with O(1) splicing → doubly linked list; map values POINT to list nodes to bridge them. This composition insight is the entire genre."
+  },
+  {
+    prompt: "Why must the linked list be DOUBLY linked?",
+    options: [
+      "unlinking an arbitrary node in O(1) requires its predecessor — singly linked would need an O(n) walk to find it",
+      "doubly linked lists use less memory",
+      "eviction happens at both ends simultaneously",
+      "get() traverses backward"
+    ],
+    answer: 0,
+    explain: "get() jumps via the map to a node in the MIDDLE and must splice it out: node.prev is essential. Every 'O(1) removal of an arbitrary known node' requirement implies prev pointers."
+  },
+  {
+    prompt: "Why does each Node store its key, not just its value?",
+    options: [
+      "eviction finds the LRU node via the LIST — deleting it from the MAP requires knowing its key",
+      "keys make the nodes hashable",
+      "duplicate values would collide otherwise",
+      "it's stylistic — the key is recoverable from the map"
+    ],
+    answer: 0,
+    explain: "The eviction path runs list-first (tail.prev), map-second (del map[lru.key]). Without the key on the node, you'd scan the map for the node — O(n), budget blown. Sync discipline, concretely."
+  },
+  {
+    code: "\"Design a stack with O(1) push, pop, and getMin.\"",
+    prompt: "The composition is…",
+    options: [
+      "a main stack + a parallel stack holding the min at-or-below each level",
+      "a stack + a heap sharing elements",
+      "a sorted list re-sorted on each push",
+      "a stack that stores (value, global_min) recomputed on pop"
+    ],
+    answer: 0,
+    explain: "Push min(x, min_stack[-1]) alongside; pop both together — the min BELOW any point never changes, so it can be frozen per level. The heap fails: popping an arbitrary departed element isn't O(1)."
+  },
+  {
+    prompt: "Review from 0042: initializing that parallel structure as [[0] * cols] * rows would be a bug because…",
+    options: [
+      "the outer * copies row REFERENCES — all rows alias one list",
+      "multiplication doesn't work on nested lists",
+      "the rows would be immutable",
+      "it allocates rows lazily, causing IndexError"
+    ],
+    answer: 0,
+    explain: "Writes through one 'row' appear in all. [[0]*cols for _ in range(rows)] creates fresh rows. Third sighting of this gotcha — it should be reflexive now."
+  }
+]);
+</script>
+</body>
+</html>

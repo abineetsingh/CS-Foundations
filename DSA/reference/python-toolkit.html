@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python Toolkit — DSA Practice</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Reference · DSA Practice</span>
+  <h1>Python Interview Toolkit</h1>
+  <p class="lede">The night-before sheet: imports, idioms, and gotchas. Companion to <a href="../lessons/0042-python-toolkit.html">Lesson 0042</a>.</p>
+
+  <h2>Imports</h2>
+  <pre><code>from collections import Counter, defaultdict, deque
+import heapq                      # min-heap on lists; negate for max
+import bisect                     # binary search on sorted lists
+from functools import lru_cache   # @lru_cache(maxsize=None) → memoization
+import math                       # ceil, floor, inf, gcd, sqrt</code></pre>
+
+  <h2>Containers at a glance</h2>
+  <table>
+    <tr><th>Need</th><th>Use</th><th>Key ops</th></tr>
+    <tr><td>counting</td><td><code>Counter(iterable)</code></td><td><code>c[x]</code> (0 if absent) · <code>c.most_common(k)</code> · <code>c1 == c2</code></td></tr>
+    <tr><td>grouping</td><td><code>defaultdict(list)</code></td><td><code>d[k].append(v)</code> — no key-check dance</td></tr>
+    <tr><td>queue / both ends</td><td><code>deque</code></td><td><code>append</code> · <code>popleft</code> · <code>appendleft</code> · <code>pop</code> — all O(1)</td></tr>
+    <tr><td>priority</td><td><code>heapq</code> on a list</td><td><code>heappush</code> · <code>heappop</code> · <code>h[0]</code> peek · <code>heapify</code> O(n) · tuples for keyed items</td></tr>
+    <tr><td>sorted lookup</td><td><code>bisect</code></td><td><code>bisect_left</code> (first ≥) · <code>bisect_right</code> (first &gt;) · <code>insort</code></td></tr>
+  </table>
+
+  <h2>Idioms</h2>
+  <pre><code>for i, x in enumerate(nums): ...              # index + value
+for a, b in zip(xs, ys): ...                  # parallel walk
+pairs.sort(key=lambda p: (p[0], -p[1]))       # multi-key sort (stable!)
+best = max(items, key=len)                    # extremes by key
+if any(x &lt; 0 for x in nums): ...              # short-circuit scans
+grid = [[0] * cols for _ in range(rows)]      # 2-D init (NEVER [[0]*c]*r)
+a, b = b, a                                   # swap
+prev2, prev1 = prev1, f(prev1, prev2)         # rolling DP update
+result = []; ... ; "".join(parts)             # string building (never += in loop)
+seen = set(); path = []; path[:]              # backtracking snapshot
+float("inf")                                  # min-hunt sentinel
+divmod(n, 10)                                 # digits
+list(zip(*matrix))                            # transpose
+DIRS = [(-1,0),(1,0),(0,-1),(0,1)]            # grid neighbors + bounds check</code></pre>
+
+  <h2>Cost reminders (full table: <a href="./big-o-cheatsheet.html">Big-O sheet</a>)</h2>
+  <table>
+    <tr><td><code>x in list</code> <strong>O(n)</strong> — convert to set for lookups</td><td><code>list.pop(0)</code> <strong>O(n)</strong> — use deque</td></tr>
+    <tr><td><code>s += ch</code> in a loop <strong>O(n²)</strong> — collect + join</td><td><code>arr.sort()</code> returns <strong>None</strong> — sorted() for a copy</td></tr>
+    <tr><td>slicing copies: <code>arr[a:b]</code> O(b−a) time AND space</td><td>recursion depth caps at ~1000 — tabulate for big n</td></tr>
+  </table>
+
+  <h2>Gotchas (the live-interview killers)</h2>
+  <pre><code># 1. Mutable default — evaluated ONCE at def time:
+def f(x, acc=[]):        # BUG: shared across calls
+def f(x, acc=None): acc = acc if acc is not None else []   # fix
+
+# 2. Aliased rows:
+[[0] * 3] * 2            # BUG: two refs, one row
+[[0] * 3 for _ in range(2)]                                 # fix
+
+# 3. Shallow copies:
+path[:]                  # copies the list, not nested lists
+copy.deepcopy(board)     # for nested — O(cells), say so
+
+# 4. Late-binding closures in loops:
+fs = [lambda: i for i in range(3)]      # all return 2
+fs = [lambda i=i: i for i in range(3)]  # fix: bind at def time
+
+# 5. Integer division on negatives:
+-7 // 2 == -4  (floors toward -inf);  int(-7 / 2) == -3 (truncates)</code></pre>
+
+  <h2>Templates worth having cold</h2>
+  <pre><code># binary search, leftmost (bisect_left by hand) — Lesson 0014
+lo, hi = 0, len(a)
+while lo &lt; hi:
+    mid = (lo + hi) // 2
+    if a[mid] &lt; target: lo = mid + 1
+    else: hi = mid
+
+# BFS — Lessons 0020/0028
+q, visited = deque([start]), {start}
+while q:
+    node = q.popleft()
+    for nb in neighbors(node):
+        if nb not in visited:
+            visited.add(nb); q.append(nb)
+
+# backtracking — Lesson 0026
+def backtrack(i):
+    if done(i): result.append(path[:]); return
+    for choice in choices(i):
+        path.append(choice)
+        backtrack(i + 1)
+        path.pop()
+
+# top-k — Lesson 0023
+heap = nums[:k]; heapq.heapify(heap)
+for x in nums[k:]:
+    if x &gt; heap[0]: heapq.heapreplace(heap, x)</code></pre>
+
+  <div class="lesson-footer">
+    Companions: <a href="./big-o-cheatsheet.html">Big-O sheet</a> · <a href="./patterns-cheatsheet.html">Patterns sheet</a> · <a href="./glossary.html">Glossary</a> · canonical costs: <a href="https://wiki.python.org/moin/TimeComplexity">Python Wiki</a>
+  </div>
+</main>
+</body>
+</html>
