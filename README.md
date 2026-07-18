@@ -1,3 +1,5 @@
+## CS Fundamentals and Foundations for Software Engineers
+
 The goal of this repo is to provide a comprehensive and easy to digest set of curriculums to learn and master most commonly seen and used concepts in Software Engineering interviews. 
 
 The lessons are essentially HTML pages that can be opened in any browser which explains a given conecpt, creates a learning plan and provides animations/quizzes for deeper understanding.
