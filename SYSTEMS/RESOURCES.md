@@ -30,5 +30,6 @@
 
 ## Gaps
 
-- A vetted Discord/study-group specifically for system design interview practice (mock-interview partners) — worth researching when phase 5 nears.
-- A beginner-friendly guided lab series for deploying a real service cheaply (Fly.io/Railway-style) — needed by phase 4; verify current free tiers then.
+- A vetted Discord/study-group specifically for system design interview practice (mock-interview partners) - worth researching when phase 5 nears.
+- A beginner-friendly guided lab series for deploying a real service cheaply (Fly.io/Railway-style) - needed by phase 4; verify current free tiers then.
+
