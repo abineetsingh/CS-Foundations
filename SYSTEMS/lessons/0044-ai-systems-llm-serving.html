@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0044 — AI Systems I: LLM Serving</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0044 · ~30 minutes · Systems Design · Phase 5</span>
+  <h1>AI Systems I: LLM Serving</h1>
+  <p class="lede">One skill, learned today: design an LLM inference API — continuous batching, KV-cache economics, model routing — using the systems toolkit you already own.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>This is the mission's home turf: AI-lab interviews increasingly ask "design ChatGPT's backend" or "serve a 70B model at scale" — and the punchline of this lesson is that <em>you already know 80% of the answer</em>. The GPU adds new physics; the architecture around it is lessons 0001–0043 wearing a lab coat.</p>
+  </div>
+
+  <h2>The new physics, in three facts</h2>
+  <ul>
+    <li><strong>Inference is memory-bound and stateful-ish.</strong> Generating each token requires streaming the model's weights through the GPU (the 0005 tie-in: HBM bandwidth is the wall), and attention needs the <strong>KV-cache</strong> — per-conversation attention state that grows with context length, gigabytes for long chats. It's your 0009 cache concept, except <em>losing it means expensive recomputation of the whole prefix</em>, not a cheap DB refill.</li>
+    <li><strong>Requests are wildly heterogeneous.</strong> One request: 50 tokens in, 10 out (100 ms). Another: 100k in, 4,000 out (minutes). This is 0008's "least connections" argument at its extreme — round robin is malpractice here.</li>
+    <li><strong>The unit of efficiency is the batch.</strong> A GPU serving one request at a time idles its compute; <strong>continuous batching</strong> (vLLM's contribution) admits and retires requests <em>per token step</em>, keeping the batch full as requests finish — 2–10× throughput over naive batching <a href="https://docs.vllm.ai/en/latest/">[vLLM docs]</a>.</li>
+  </ul>
+
+  <h2>The architecture: everything you know, re-cast</h2>
+  <div id="flow"></div>
+  <table>
+    <tr><th>Layer</th><th>It is literally…</th></tr>
+    <tr><td>Gateway: auth, <em>token-based</em> rate limits, priority</td><td>0028/0037 (buckets debited per token, not per request)</td></tr>
+    <tr><td>Router → replica selection by queue depth + KV-cache affinity</td><td>0008 least-connections + 0016 consistent hashing on conversation id (hit a replica already holding your prefix's KV-cache — sticky sessions with an honest justification)</td></tr>
+    <tr><td>Per-replica admission queues, priority-tiered; batch jobs → a real queue</td><td>0023 (queue depth = the autoscaling and shedding signal; interactive vs batch = priority shedding, 0028)</td></tr>
+    <tr><td>Token streaming to clients</td><td>SSE (0029, verbatim)</td></tr>
+    <tr><td>Metrics: <strong>time-to-first-token p99</strong>, tokens/sec, GPU util, KV-cache hit rate; eval-gated canary model rollouts</td><td>0035 + 0034 with new nouns</td></tr>
+    <tr><td>Usage events → billing via log + idempotent consumers</td><td>0024/0025 (the metering example from 0025, now yours to design)</td></tr>
+  </table>
+  <p>The genuinely new design tensions worth naming in interviews: <strong>latency vs throughput is a dial</strong> (bigger batches = better GPU economics = worse time-to-first-token; interactive and batch traffic want different dial settings — hence separate pools); <strong>prefill vs decode</strong> (ingesting the prompt is compute-heavy, generating is memory-heavy — big shops disaggregate them onto different GPU pools); and <strong>prompt caching as product</strong> (shared system-prompt prefixes = KV-cache reuse across requests = the 10× cheaper cached-input pricing you've seen on real price sheets — 0009 hit-ratio economics, billed to customers).</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Interview framing</span>
+    <p>Asked to "design an LLM API," run the 0040 algorithm unchanged — requirements (latency tiers! streaming!), envelope (tokens/sec, not QPS: 10k concurrent users × 20 tok/s each = 200k tok/s ÷ ~2k tok/s per GPU ≈ 100 GPUs before batching efficiencies), API (<code>POST /v1/messages</code>, SSE), HLD (the diagram above), deep dives (batching, KV-affinity routing, priority shedding). The examiner is watching whether GPU exotica breaks your process. It shouldn't — it's capacity math with pricier boxes.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://docs.vllm.ai/en/latest/design/arch_overview.html">vLLM — architecture overview</a> (20 min) for continuous batching and PagedAttention (KV-cache memory management that is <em>literally</em> virtual-memory paging applied to attention — the systems-ideas-recur theme in one feature). Alex Xu's ByteByteGo has a strong "Design ChatGPT" case study for the interview-shaped version.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0043-drill-news-feed.html">◀ 0043 Drill: News Feed</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0045-ai-systems-agents-and-rag.html">0045 AI Systems II: Agents &amp; RAG ▶</a></p>
+    <p>Next: the layer above serving — agents, tools, and retrieval. Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Client", sub: "SSE stream" },
+    { id: "gw", label: "Gateway", sub: "auth · token limits" },
+    { id: "router", label: "Router", sub: "depth + KV affinity" },
+    { id: "g1", label: "GPU replica 1", sub: "batch: 14 seqs", row: 1 },
+    { id: "g2", label: "GPU replica 2", sub: "batch: 11 seqs", row: 1 },
+    { id: "log", label: "Usage log", sub: "→ billing", row: 1 },
+  ],
+  links: [["client","gw"], ["gw","router"], ["router","g1"], ["router","g2"], ["g1","log"], ["g2","log"]],
+  steps: [
+    { from: "client", to: "gw", packet: "POST /v1/messages",
+      caption: "Request arrives: auth (0037), then rate limiting in TOKENS per minute (0028's bucket, debited by cost — a 100k-token prompt debits 100k). Priority tier attached: interactive." },
+    { from: "gw", to: "router", packet: "conv 7f3a, ~5k tokens",
+      caption: "The router chooses a replica — NOT round robin (0008's lesson at its extreme: requests vary 1000× in cost). Signals: per-replica queue depth (0023), and KV-cache affinity…" },
+    { from: "router", to: "g1", packet: "→ replica 1 (KV hit!)",
+      caption: "…conversation 7f3a hashed here before (0016's ring) — replica 1 still holds its KV-cache. The 5k-token prefix needs NO recompute: prefill skipped, time-to-first-token collapses. Sticky routing with an honest reason." },
+    { at: "g1",
+      caption: "Continuous batching: 14 sequences decode in lockstep, one token step at a time; finished sequences exit and queued ones join MID-FLIGHT. The GPU's memory bandwidth is always earning. This is the throughput trick that made vLLM famous." },
+    { from: "g1", to: "client", packet: "SSE: tok · tok · tok",
+      caption: "Tokens stream back via SSE (0029, verbatim) as they're generated. Metrics record time-to-first-token and tokens/sec per request (0035) — TTFT p99 is THE user-feel number." },
+    { from: "g1", to: "log", packet: "usage event (idempotent)",
+      caption: "Completion → usage event to the log (0024); billing consumes with event-id dedupe (0025 — never double-charge). Meanwhile: queue depth drives autoscaling (0033), overload sheds batch tier before interactive (0028), model rollouts canary behind eval metrics (0034). Every arrow: a lesson you own." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Continuous batching beats request-at-a-time serving because…",
+    options: [
+      "sequences join and leave batches mid-flight",
+      "it compresses prompts before the GPU",
+      "batches share one KV-cache entry",
+      "it eliminates the prefill phase entirely",
+    ],
+    answer: 0,
+    explain: "Admission/retirement per token-step keeps the batch (and the GPU's memory bandwidth) full even as heterogeneous requests finish at different times. 2–10× throughput from scheduling alone." },
+  { prompt: "Routing a conversation back to the replica holding its KV-cache trades…",
+    options: [
+      "balance flexibility for skipped prefill work",
+      "throughput for stronger consistency guarantees",
+      "cache memory for network bandwidth",
+      "streaming latency for batch efficiency",
+    ],
+    answer: 0,
+    explain: "It's sticky sessions (0007's named smell!) — accepted here because the prize is real: no re-prefill of a huge prefix. When the replica dies, fall back to any node + recompute. Tradeoff, stated, owned." },
+  { prompt: "LLM rate limits are denominated in tokens (not requests) because…",
+    options: [
+      "cost scales with tokens, not calls",
+      "tokens are easier to count precisely",
+      "requests can't be identified per user",
+      "GPUs process tokens sequentially anyway",
+    ],
+    answer: 0,
+    explain: "One request can cost 1000× another (0044's heterogeneity fact). Fair limiting must track the actual resource — the 0028 bucket, debited proportionally." },
+  { prompt: "Interactive and batch inference run on separate pools because…",
+    options: [
+      "they want opposite latency-throughput settings",
+      "batch jobs corrupt interactive KV-caches",
+      "billing systems require separated hardware",
+      "SSE cannot stream from batch pools",
+    ],
+    answer: 0,
+    explain: "Interactive optimizes time-to-first-token (small batches); batch optimizes tokens/dollar (huge batches, who cares about TTFT). One pool can't sit at both dial positions — bulkheads (0036) by workload." },
+  { prompt: "Spaced review — Lesson 0034: shipping a new model version safely means…",
+    options: [
+      "canary traffic gated on eval metrics",
+      "blue-green flips at low-traffic hours",
+      "rolling updates across every replica",
+      "feature flags hiding the new weights",
+    ],
+    answer: 0,
+    explain: "Model regressions are quality regressions — error rates stay clean while answers get worse. Canaries compared on eval scores (refusals, quality, TTFT) against baseline, auto-rollback on regression. 0034's machinery, eval-shaped metrics." },
+]);
+</script>
+</body>
+</html>

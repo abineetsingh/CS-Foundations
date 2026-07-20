@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0025 — Delivery Guarantees</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0025 · ~20 minutes · Systems Design · Phase 3</span>
+  <h1>Delivery Guarantees</h1>
+  <p class="lede">One skill, learned today: state which delivery guarantee a channel gives, why "exactly-once delivery" is a myth, and how "effectively-once" is really achieved.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Does your queue deliver exactly once?" is a trap interviewers set deliberately — the confident wrong answer ("yes, we use Kafka") fails candidates who'd otherwise pass. The correct three-sentence answer is today's entire lesson, and it welds together everything from 0022–0024.</p>
+  </div>
+
+  <h2>The three promises</h2>
+  <p>Any channel moving messages between machines makes exactly one of these promises — forced by the (a)/(b)/(c) ambiguity of lesson 0022 (no response ≠ not delivered):</p>
+  <table>
+    <tr><th>Guarantee</th><th>Mechanism</th><th>Failure shape</th><th>Acceptable for</th></tr>
+    <tr><td><strong>At-most-once</strong></td><td>fire and forget — no ack, no retry</td><td>messages silently lost</td><td>metrics ticks, presence pings — losses vanish in aggregate</td></tr>
+    <tr><td><strong>At-least-once</strong></td><td>ack + retry until confirmed (0022's trio; 0023's ack-after-work)</td><td>messages duplicated</td><td>almost everything — <em>if</em> consumers handle duplicates</td></tr>
+    <tr><td>"Exactly-once"</td><td colspan="3">as a <em>delivery</em> promise over a network: impossible. The sender of an unacked message must choose — resend (dupe risk) or not (loss risk). There is no third option <a href="https://dataintensive.net/">[DDIA ch. 9]</a></td></tr>
+  </table>
+  <div id="flow"></div>
+
+  <h2>Effectively-once: the real thing behind the marketing</h2>
+  <p>What systems actually build is <strong>at-least-once delivery + idempotent processing = effectively-once <em>effects</em></strong>. The duplicate arrives; its <em>impact</em> doesn't. The standard dedupe toolkit:</p>
+  <ul>
+    <li><strong>Idempotency keys / event ids</strong> (0022): processed-id set; repeats are recognized and replayed, not re-executed.</li>
+    <li><strong>Natural idempotency:</strong> make the operation an upsert — <code>SET status='shipped'</code> twice is harmless; <code>counter += 1</code> twice is not. Prefer absolute writes over relative ones where possible.</li>
+    <li><strong>Transactional dedupe:</strong> record the event-id <em>in the same database transaction</em> (0014) as the effect — so "did the work" and "remembered doing it" can never disagree. This little move previews lesson 0027's outbox pattern.</li>
+  </ul>
+  <p>The interview-ready summary, three sentences: <em>"Exactly-once delivery is impossible over an unreliable network — an unacknowledged send forces a choice between possible loss and possible duplication. So we choose at-least-once and make processing idempotent, deduping by message id. Kafka's 'exactly-once semantics' is this same recipe packaged — idempotent producers plus transactional consumers — not a physics exemption."</em> <a href="https://kafka.apache.org/documentation/#semantics">[Kafka: message delivery semantics]</a></p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Usage metering at an LLM API is a delivery-guarantee decision with revenue attached: token-count events flow from inference servers to billing. At-most-once undercharges (lost events = free tokens); naive at-least-once <em>overcharges</em> (duplicate events = double-billed customers — trust-destroying). Real systems: at-least-once + event-id dedupe in the billing store. You now know why that design is forced, not chosen.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://kafka.apache.org/documentation/#semantics">Kafka docs — Message delivery semantics</a> (10 min): the most-cited real-world statement of these tradeoffs, including exactly what its "exactly-once" does and doesn't claim.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0024-streams-and-event-logs.html">◀ 0024 Streams &amp; Event Logs</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0026-consensus-lightly.html">0026 Consensus, Lightly ▶</a></p>
+    <p>Next: the deepest question yet — how machines that can't trust the network agree on anything at all. Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "producer", label: "Producer", sub: "sends event #42" },
+    { id: "consumer", label: "Consumer", sub: "processes it" },
+    { id: "store", label: "Effect store", sub: "seen-ids + results", row: 1 },
+  ],
+  links: [["producer","consumer"], ["consumer","store"]],
+  steps: [
+    { from: "producer", to: "consumer", packet: "event #42",
+      caption: "Event #42 is delivered. The consumer processes it… and its ack back to the producer is lost. The 0022 ambiguity, now on the messaging layer." },
+    { at: "producer",
+      caption: "The producer must decide about the silence. Never resend → at-most-once (risk: #42 lost forever). Resend → at-least-once (risk: #42 arrives twice). 'Exactly once' would require knowing what happened — which is precisely what it can't." },
+    { from: "producer", to: "consumer", packet: "event #42 (again)",
+      caption: "It chooses at-least-once and resends — the right default. Now the duplicate is the consumer's problem. Watch the dedupe:" },
+    { from: "consumer", to: "store", packet: "seen #42? → YES",
+      caption: "Before acting, the consumer checks its processed-ids. #42 is there — this is a replay, not news. It acks WITHOUT re-executing. The charge doesn't double; the counter doesn't re-increment." },
+    { at: "store",
+      caption: "The subtle key: 'record #42 as done' and 'apply #42's effect' were written in ONE transaction (0014). Crash between them is impossible — so the dedupe record can never lie about the effect." },
+    { at: ["producer", "consumer", "store"],
+      caption: "The complete recipe: at-least-once delivery + idempotent, transactionally-deduped processing = effectively-once EFFECTS. Delivery count stays fuzzy; impact count is exact. That's the whole trick behind every 'exactly-once' banner." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Why is exactly-once DELIVERY impossible over a network?",
+    options: [
+      "silence forces choosing loss or duplication",
+      "clocks drift too much between machines",
+      "packets corrupt beyond checksum repair",
+      "queues cannot store acknowledgment state",
+    ],
+    answer: 0,
+    explain: "The unacked-send dilemma: the sender can't distinguish 'lost' from 'delivered, ack lost'. Resend → maybe dupe. Don't → maybe loss. No protocol escapes it — only processing-side dedupe neutralizes it." },
+  { prompt: "Which pairing is correctly matched?",
+    options: [
+      "metrics ping: at-most-once; payment: at-least-once deduped",
+      "payment: at-most-once; metrics ping: at-least-once deduped",
+      "both at-most-once, simplicity wins overall",
+      "both exactly-once, correctness demands it",
+    ],
+    answer: 0,
+    explain: "A lost metrics tick disappears into aggregates — retrying isn't worth machinery. A lost (or doubled) payment is unacceptable — at-least-once + idempotent processing." },
+  { prompt: "The consumer runs 'counter += 1' per event, at-least-once delivery. The bug:",
+    options: [
+      "duplicates inflate the counter permanently",
+      "lost events zero the counter",
+      "the counter overflows under load",
+      "acks reset the count mid-stream",
+    ],
+    answer: 0,
+    explain: "Relative writes double-apply on redelivery. Fixes: dedupe by event-id before applying, or restructure to an absolute write. 'Is my handler safe to run twice?' — ask it always." },
+  { prompt: "Spaced review — Lesson 0023: in queue terms, at-least-once delivery is implemented by…",
+    options: [
+      "ack-after-work plus visibility timeouts",
+      "ack-before-work plus longer timeouts",
+      "deleting jobs the moment workers take them",
+      "dead-letter queues catching every duplicate",
+    ],
+    answer: 0,
+    explain: "Take-invisibly → work → ack → delete. A crash before ack resurfaces the job. That mechanism IS the at-least-once promise (and the source of its duplicates)." },
+  { prompt: "Spaced review — Lesson 0014: recording the event-id in the same transaction as its effect guarantees…",
+    options: [
+      "dedupe record and effect never disagree",
+      "the event processes faster than average",
+      "duplicates get rejected before delivery",
+      "the producer learns the outcome instantly",
+    ],
+    answer: 0,
+    explain: "Atomicity: both happen or neither. Separate writes allow 'effect applied, id unrecorded' (crash between) — and the redelivered event would re-apply. The transaction closes that door." },
+]);
+</script>
+</body>
+</html>

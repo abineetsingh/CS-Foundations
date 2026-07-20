@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Systems Glossary</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Systems &middot; Reference</span>
+  <h1>Glossary</h1>
+  <p class="lede">Every term the course defines, in one place, phase by phase. Skim before interviews; terms are never redefined differently in later lessons.</p>
+
+  <h2>Phase 1 — Foundations</h2>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr id="client"><td><strong>Client</strong></td><td>The side that <em>initiates</em> a request: browser, app, or a Python script calling an API. A role, not a device.</td></tr>
+    <tr id="server"><td><strong>Server</strong></td><td>A <em>program</em> that listens for requests and answers them. Not the hardware — one machine can run many servers.</td></tr>
+    <tr id="backend"><td><strong>Backend</strong></td><td>Everything server-side powering an application: API servers, databases, caches, queues, and the infrastructure beneath.</td></tr>
+    <tr id="request"><td><strong>Request</strong></td><td>Client→server message: method (<code>GET</code>, <code>POST</code>…), path, headers, optional body.</td></tr>
+    <tr id="response"><td><strong>Response</strong></td><td>The server's answer: status code, headers, usually a JSON body.</td></tr>
+    <tr id="http"><td><strong>HTTP</strong></td><td>The request/response protocol clients and servers speak on the web.</td></tr>
+    <tr id="ip-address"><td><strong>IP address</strong></td><td>Numeric machine address (<code>203.0.113.7</code>) — what packets are delivered to.</td></tr>
+    <tr id="port"><td><strong>Port</strong></td><td>Number (0–65535) selecting <em>which program</em> on a machine receives traffic. HTTPS: 443; dev servers: 8000 etc.</td></tr>
+    <tr id="dns"><td><strong>DNS</strong></td><td>The internet's phone book: name → IP address. Always the first stop.</td></tr>
+    <tr id="localhost"><td><strong>localhost</strong></td><td>"This machine" (127.0.0.1). No DNS, no network — how you test locally.</td></tr>
+    <tr id="status-code"><td><strong>Status code</strong></td><td><code>2xx</code> success (200/201/204), <code>4xx</code> client's fault (400/401/403/404/409/429), <code>5xx</code> server's fault (500/503).</td></tr>
+    <tr id="endpoint"><td><strong>Endpoint</strong></td><td>One path+method a server answers (<code>GET /users/42</code>). An API is a set of endpoints.</td></tr>
+    <tr id="idempotent"><td><strong>Idempotent</strong></td><td>Safe to repeat: doing it twice leaves the same end state as once (PUT, DELETE — not POST). The load-bearing word of phase 3.</td></tr>
+    <tr id="state"><td><strong>State</strong></td><td>Data that must outlive a request or process — users, orders, balances. Truth lives in databases; process memory is scratch.</td></tr>
+    <tr id="database"><td><strong>Database</strong></td><td>The program whose job is durable, concurrent, indexed, constrained storage of truth.</td></tr>
+    <tr id="latency"><td><strong>Latency</strong></td><td>Time for one operation, start to finish. Memory: ns; SSD: µs; network: ms — see the <a href="latency-numbers.html">latency card</a>.</td></tr>
+    <tr id="qps"><td><strong>QPS</strong></td><td>Queries per second. Envelope math: daily actions ÷ 10⁵; peak ≈ 2–10× average.</td></tr>
+    <tr id="vertical-scaling"><td><strong>Vertical scaling</strong></td><td>Buy a bigger machine. Zero code changes; hard ceiling; still a single point of failure.</td></tr>
+    <tr id="horizontal-scaling"><td><strong>Horizontal scaling</strong></td><td>Add more machines. No ceiling, survives failures — requires stateless services.</td></tr>
+    <tr id="stateless"><td><strong>Stateless</strong></td><td>A service keeping no client-visible state in its own memory between requests; truth externalized. Any server can serve any request.</td></tr>
+    <tr id="session"><td><strong>Session</strong></td><td>"Who is logged in" state. Externalize to a shared store or carry as a signed token — never keep in one server's memory.</td></tr>
+    <tr id="load-balancer"><td><strong>Load balancer</strong></td><td>Fronts a fleet with one address; spreads requests across healthy backends (round robin / least connections); health-checks them. L4 sees IPs/ports; L7 sees HTTP.</td></tr>
+    <tr id="reverse-proxy"><td><strong>Reverse proxy</strong></td><td>A server standing in front of others, relaying traffic (nginx, HAProxy). LBs, gateways, and CDN edges are all reverse proxies.</td></tr>
+    <tr id="cache"><td><strong>Cache</strong></td><td>Small fast store of <em>copies</em> of expensive-to-fetch data. Every cache trades freshness for speed.</td></tr>
+    <tr id="ttl"><td><strong>TTL</strong></td><td>Time-to-live: a cache entry's self-destruct timer. Bounds memory and staleness at once.</td></tr>
+    <tr id="hit-ratio"><td><strong>Hit ratio</strong></td><td>Fraction of reads served from cache (h). Effective latency = h·t_hit + (1−h)·t_miss; the source sees only (1−h) of traffic.</td></tr>
+    <tr id="thundering-herd"><td><strong>Thundering herd / stampede</strong></td><td>A hot cache key expires; thousands miss simultaneously and charge the database. Fixes: per-key coalescing, TTL jitter, stale-while-revalidate.</td></tr>
+    <tr id="cdn"><td><strong>CDN</strong></td><td>Planet-scale cache fleet (Cloudflare, CloudFront). Users hit a nearby edge instead of your origin. Controlled via <code>Cache-Control</code>.</td></tr>
+    <tr id="edge"><td><strong>Edge</strong></td><td>A CDN's point of presence near users (~10 ms away), vs your "origin" servers.</td></tr>
+  </table>
+
+  <h2>Phase 2 — The data layer</h2>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr id="primary-key"><td><strong>Primary key</strong></td><td>A row's unique, permanent identifier. Also enforces uniqueness.</td></tr>
+    <tr id="foreign-key"><td><strong>Foreign key</strong></td><td>A column holding another table's primary key — an enforceable typed pointer. Joins dereference it.</td></tr>
+    <tr id="join"><td><strong>Join</strong></td><td>Matching rows across tables by key. Many-to-many needs a join table of two FKs.</td></tr>
+    <tr id="normalization"><td><strong>Normalization</strong></td><td>Every fact stored once. Denormalization = deliberate duplication for read speed, paid at update time. Normalize by default; denormalize by evidence.</td></tr>
+    <tr id="index"><td><strong>Index</strong></td><td>A sorted structure (B-tree) mapping column value → row location: O(log n) lookups, taxing every write. Composite indexes obey the leftmost-prefix rule.</td></tr>
+    <tr id="btree"><td><strong>B-tree</strong></td><td>A search tree widened so each node holds hundreds of keys — 3–4 levels for millions of rows; each level is one disk read.</td></tr>
+    <tr id="full-scan"><td><strong>Full table scan</strong></td><td>Reading every row because no index fits — O(n). <code>EXPLAIN</code> says <code>SCAN</code>; the fix says <code>SEARCH … USING INDEX</code>.</td></tr>
+    <tr id="transaction"><td><strong>Transaction</strong></td><td><code>BEGIN…COMMIT</code>: multi-step change made all-or-nothing (ACID: atomic, consistent, isolated, durable). Watch for lost updates under weak isolation.</td></tr>
+    <tr id="replication"><td><strong>Replication</strong></td><td>Live copies of data on multiple machines. Leader takes writes, streams changes to followers; reads scale across copies.</td></tr>
+    <tr id="replication-lag"><td><strong>Replication lag</strong></td><td>Followers run slightly behind the leader (async replication). Causes stale reads and missing-own-write bugs; fixed by read-your-writes routing.</td></tr>
+    <tr id="failover"><td><strong>Failover</strong></td><td>Leader dies → promote a follower. Safe only when a quorum ratifies it (else: split brain). Async lag risks losing last acked writes.</td></tr>
+    <tr id="sharding"><td><strong>Sharding / partitioning</strong></td><td>Splitting rows across machines by a shard key. Golden rule: the hot query touches one shard. Range vs hash; beware hot keys (celebrities).</td></tr>
+    <tr id="consistent-hashing"><td><strong>Consistent hashing</strong></td><td>Keys and nodes on a hash ring; a key belongs to the next node clockwise. Adding a node moves ~1/N of keys (vs ~all under <code>% N</code>). Virtual nodes smooth arcs.</td></tr>
+    <tr id="object-storage"><td><strong>Object storage</strong></td><td>Planet-scale KV store for files (S3, GCS): flat key → bytes, 11-nines durable, HTTP-native. Metadata in the DB; bytes here; CDN in front.</td></tr>
+    <tr id="blob"><td><strong>Blob</strong></td><td>Binary large object — images, video, model checkpoints. Never store in the database.</td></tr>
+    <tr id="presigned-url"><td><strong>Presigned URL</strong></td><td>A short-lived signed grant ("PUT exactly this key for 10 min") letting clients upload/download directly to object storage, bypassing your servers.</td></tr>
+    <tr id="partition-network"><td><strong>(Network) partition</strong></td><td>The network splits; both sides alive but mutually unreachable. CAP: during one, each side chooses consistency (refuse) or availability (serve possibly-stale).</td></tr>
+  </table>
+
+  <h2>Phase 3 — Distributed systems</h2>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr id="idempotency-key"><td><strong>Idempotency key</strong></td><td>Client-minted unique id per <em>operation</em> (not per attempt); server stores processed ids and replays results for repeats. Makes retries safe.</td></tr>
+    <tr id="retry-storm"><td><strong>Retry storm</strong></td><td>Overload → timeouts → retries → more overload. Broken by backoff+jitter, retry budgets, and load shedding.</td></tr>
+    <tr id="message-queue"><td><strong>Message queue</strong></td><td>Durable buffer between producers and workers (SQS, RabbitMQ). Each job to one worker; ack-after-work; visibility timeout redelivers on crash.</td></tr>
+    <tr id="worker"><td><strong>Worker</strong></td><td>A consumer process draining a queue at its own pace. Must be idempotent (redelivery happens). Scale on queue depth.</td></tr>
+    <tr id="backpressure"><td><strong>Backpressure</strong></td><td>Signaling "slow down" upstream when consumers can't keep up. Queues absorb bursts, not permanent rate mismatch — bound them.</td></tr>
+    <tr id="event-log"><td><strong>Event log / stream</strong></td><td>Append-only ordered sequence of facts (Kafka). Consumers read without consuming, each tracking its own offset; retained and replayable; partitioned by key (order holds within a partition).</td></tr>
+    <tr id="offset"><td><strong>Offset</strong></td><td>A consumer's bookmark in an event log — advance, or rewind to replay history (idempotently!).</td></tr>
+    <tr id="event-driven"><td><strong>Event-driven architecture</strong></td><td>Services react to published facts rather than calling each other — one write, N independent consumers; loose coupling.</td></tr>
+    <tr id="quorum"><td><strong>Quorum</strong></td><td>A majority (⌊N/2⌋+1). Two majorities of one set must overlap — hence at most one elected leader, ever. Odd cluster sizes; minority side stalls.</td></tr>
+    <tr id="split-brain"><td><strong>Split brain</strong></td><td>Two leaders accepting writes after a careless failover during a partition. Prevented by quorum elections (Raft).</td></tr>
+    <tr id="consensus"><td><strong>Consensus</strong></td><td>Protocols (Raft, Paxos) for a cluster to agree despite failures. Used bottled: etcd/ZooKeeper for leader election, locks, config — small critical facts only (it's expensive).</td></tr>
+    <tr id="saga"><td><strong>Saga</strong></td><td>Multi-service operation as a sequence of local transactions, each with a compensating undo (refund, release), run in reverse on failure. Eventually consistent mid-flight ("pending").</td></tr>
+    <tr id="outbox"><td><strong>Outbox pattern</strong></td><td>Write the event as a row in the <em>same local transaction</em> as the business change; a relay publishes it at-least-once. Closes the commit-then-crash-before-publish gap.</td></tr>
+    <tr id="load-shedding"><td><strong>Load shedding</strong></td><td>Near capacity, reject excess early and cheaply (fast 503/429) — by priority — rather than fail everything slowly. Breaks retry storms.</td></tr>
+    <tr id="monolith"><td><strong>Monolith</strong></td><td>One deployable unit (× N stateless copies). Function calls, shared transactions, one deploy train. The right default for young systems.</td></tr>
+    <tr id="microservices"><td><strong>Microservices</strong></td><td>Independently deployed services, each owning its data, talking over the network. Buys team autonomy; costs 0022–0027 on every internal edge. Shared database = distributed monolith.</td></tr>
+    <tr id="api-gateway"><td><strong>API gateway</strong></td><td>The fleet's one front door: auth, rate limiting, routing. Clients never learn your org chart.</td></tr>
+  </table>
+
+  <h2>Phase 4 — Production &amp; infrastructure</h2>
+  <table>
+    <tr><th>Term</th><th>Meaning</th></tr>
+    <tr id="container"><td><strong>Container</strong></td><td>A normal process isolated by namespaces (private view) and cgroups (resource caps), carrying its own userspace. Not a VM; starts in ms; filesystem is ephemeral.</td></tr>
+    <tr id="image"><td><strong>Image</strong></td><td>The frozen, layered, immutable artifact a container runs from (<code>myapi:v42</code>), stored in a registry. Immutability makes rollback = run the old tag.</td></tr>
+    <tr id="orchestration"><td><strong>Orchestration</strong></td><td>Kubernetes-class systems doing scheduling, self-healing, scaling, service discovery — via declare-desired-state + reconcile loops. Cluster truth in etcd.</td></tr>
+    <tr id="ci-cd"><td><strong>CI/CD</strong></td><td>Every commit → automated test/build pipeline → verified immutable artifact → staged rollout. No artifact ships unverified.</td></tr>
+    <tr id="percentile"><td><strong>Percentile (p50/p99)</strong></td><td>Latency is a distribution: p50 = median, p99 = worst 1%. Averages lie; tails compound under fan-out (1−0.99¹⁰ ≈ 10%). Alert on p99.</td></tr>
+    <tr id="slo"><td><strong>SLO / error budget</strong></td><td>A committed target on a measured SLI ("99.9% of reads &lt; 200 ms monthly"). 100%−SLO = the error budget: spend it shipping, freeze when it's gone. Alert on burn rate.</td></tr>
+    <tr id="circuit-breaker"><td><strong>Circuit breaker</strong></td><td>Wraps a dependency; too many failures → opens (instant local failure, no calls) → half-open probes → closes. Pairs with bulkheads (per-dependency pools) and designed fallbacks (graceful degradation).</td></tr>
+    <tr id="region"><td><strong>Region</strong></td><td>A geographic cluster of datacenters. Multi-region = latency/DR project with hard consistency tradeoffs (~50–150 ms apart).</td></tr>
+    <tr id="availability-zone"><td><strong>Availability zone (AZ)</strong></td><td>One independent datacenter within a region (~1 ms apart). Spreading replicas across AZs is the default cheap fault-tolerance.</td></tr>
+  </table>
+
+  <div class="lesson-footer">
+    <p>Built by lessons <a href="../lessons/0001-the-life-of-a-request.html">0001</a>–<a href="../lessons/0046-capstone.html">0046</a>. Companions: <a href="latency-numbers.html">latency card</a> · <a href="patterns-cheatsheet.html">patterns cheatsheet</a> · <a href="interview-runbook.html">interview runbook</a>.</p>
+  </div>
+</main>
+</body>
+</html>

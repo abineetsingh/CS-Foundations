@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0029 — Realtime Delivery</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0029 · ~25 minutes · Systems Design · Phase 3</span>
+  <h1>Realtime Delivery</h1>
+  <p class="lede">One skill, learned today: choose correctly among polling, long-polling, SSE, and WebSockets when the server has news for the client — and know what holding a million connections costs.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>HTTP's whole design (lesson 0001) is client-asks-server-answers. But chat messages, notifications, live scores, and streaming LLM tokens are news the <em>server</em> learns first. Every "design chat/notifications/live-X" interview turns on this choice within minutes — and it sets up lesson 0042's chat drill.</p>
+  </div>
+
+  <h2>The four options, weakest to strongest</h2>
+  <table>
+    <tr><th>Technique</th><th>How</th><th>Latency</th><th>Choose when</th></tr>
+    <tr><td><strong>Short polling</strong></td><td>client asks every N seconds: "anything new?"</td><td>up to N s</td><td>N can be large (badge counts); dumbest thing that works — start here</td></tr>
+    <tr><td><strong>Long polling</strong></td><td>server <em>holds</em> the request open until news arrives (or ~30s timeout), answers, client immediately re-asks</td><td>~instant</td><td>near-realtime through plain HTTP; the classic pre-WebSocket answer</td></tr>
+    <tr><td><strong>SSE</strong> (server-sent events)</td><td>one long-lived HTTP response that never ends; server appends events as text <a href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events">[MDN: SSE]</a></td><td>instant</td><td><em>one-directional</em> server→client streams: notifications, feeds, <strong>LLM tokens</strong></td></tr>
+    <tr><td><strong>WebSocket</strong></td><td>HTTP handshake upgrades the connection to a persistent, <em>bidirectional</em> message channel <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API">[MDN: WebSockets]</a></td><td>instant, both ways</td><td>genuine two-way traffic: chat, multiplayer games, collaborative editors</td></tr>
+  </table>
+  <p>The selection habit interviewers reward: <strong>climb only as high as the requirement forces.</strong> Notifications don't need WebSockets (SSE suffices — one direction). Chat does (typing, sending, receiving). Saying "polling is fine here" when it is — that's engineering; reflexively saying "WebSockets" is fashion.</p>
+  <div id="flow"></div>
+
+  <h2>What a million open connections does to your architecture</h2>
+  <p>Persistent connections quietly break two phase-1 assumptions:</p>
+  <ul>
+    <li><strong>Statelessness bends (0007):</strong> an open socket IS state — user 42's messages must reach <em>the specific server holding her socket</em>. The standard shape: a dedicated, connection-holding <strong>gateway tier</strong> (idle connections are cheap — mostly memory, ~10s of KB each; async servers hold 100k+ per node), with a registry (Redis: user → gateway node) or pub/sub (0024!) routing messages to the right box. App logic behind it stays stateless.</li>
+    <li><strong>LB behavior changes (0008):</strong> connections are long-lived, so "least connections" balances poorly at connect-time bursts and reconnect storms after a gateway dies become a thundering herd (0010) — clients must reconnect with jittered backoff (0022, everywhere forever).</li>
+    <li><strong>Delivery is still at-least-once (0025):</strong> sockets drop; clients miss messages while reconnecting. Real systems pair the push channel with a pull catch-up ("give me everything since sequence 8412") — the event-log-with-offsets idea (0024), per conversation.</li>
+  </ul>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Watch a Claude response stream in: that's <strong>SSE</strong> — one long HTTP response, tokens appended as generated (the API literally sends <code>event: content_block_delta</code> lines). One-directional fits perfectly: you asked once; the server has a stream of news. The whole voice-agent world (bidirectional audio) upgrades to WebSockets for exactly the reason in the table. You now know why each choice was made.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.hellointerview.com/learn/system-design/deep-dives/realtime-updates">Hello Interview — Realtime updates deep-dive</a> (20 min): the four options with interview framing, plus the scaling discussion above in fuller detail.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0028-rate-limiting.html">◀ 0028 Rate Limiting</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0030-monolith-vs-microservices.html">0030 Monolith vs Microservices ▶</a></p>
+    <p>Next: the architecture question behind every enterprise — one big service or many small ones? Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "alice", label: "Alice", sub: "socket → GW1" },
+    { id: "gw1", label: "Gateway 1", sub: "holds 100k sockets" },
+    { id: "gw2", label: "Gateway 2", sub: "holds 100k sockets" },
+    { id: "bus", label: "Pub/sub bus", sub: "routes by user", row: 1 },
+    { id: "app", label: "Chat service", sub: "stateless logic", row: 1 },
+  ],
+  links: [["alice","gw1"], ["gw1","bus"], ["gw2","bus"], ["app","bus"]],
+  steps: [
+    { from: "alice", to: "gw1", packet: "WS handshake ⇄",
+      caption: "Alice connects: HTTP request + Upgrade header → the connection becomes a persistent, bidirectional WebSocket, held open by Gateway 1. That socket is now state living on a specific machine." },
+    { at: "bus",
+      caption: "Gateway 1 registers: 'alice → GW1' (Redis registry, or it subscribes to alice's channel on the pub/sub bus). The system can now FIND her socket later." },
+    { from: "app", to: "bus", packet: "msg for alice",
+      caption: "Bob (on Gateway 2, or anywhere) sends Alice a message. The stateless chat service processes it — persistence, checks — then publishes it addressed to alice. It neither knows nor cares which gateway holds her." },
+    { from: "bus", to: "gw1", packet: "route: alice@GW1",
+      caption: "The bus delivers to Gateway 1 — the one node where Alice's socket lives. This registry-plus-bus indirection is THE pattern for stateful connections over a stateless core." },
+    { from: "gw1", to: "alice", packet: "push ⚡ instant",
+      caption: "Pushed down the open socket: no polling, no request — milliseconds. This is what the persistent connection bought." },
+    { at: "gw1",
+      caption: "💥 Gateway 1 dies: 100k sockets snap. Clients reconnect (jittered backoff! — or it's a self-inflicted stampede), land on surviving gateways, re-register, and pull missed messages by sequence number. Push for speed, pull for truth." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Streaming LLM tokens to a browser: which technique and why?",
+    options: [
+      "SSE, the flow is one-directional",
+      "WebSockets, streams demand full duplex",
+      "long polling, one answer per question",
+      "short polling, tokens arrive predictably",
+    ],
+    answer: 0,
+    explain: "Client asked once; server streams news one way. SSE does exactly this over plain HTTP — simpler infra, auto-reconnect built in. WebSockets' bidirectionality would be unused weight." },
+  { prompt: "Long polling's core trick:",
+    options: [
+      "hold the request until news",
+      "compress many polls into one",
+      "upgrade the connection to TCP",
+      "let servers call clients back",
+    ],
+    answer: 0,
+    explain: "The server parks the request (up to ~30s) and answers the moment something happens; the client immediately re-asks. Near-instant delivery using nothing but ordinary HTTP." },
+  { prompt: "Why do WebSockets complicate your stateless app tier (0007)?",
+    options: [
+      "open sockets pin users to servers",
+      "handshakes require sticky session cookies",
+      "messages bypass the load balancer",
+      "sockets consume database connection pools",
+    ],
+    answer: 0,
+    explain: "The connection is server-resident state: delivery must reach the ONE node holding the socket. Hence the gateway tier + registry/pub-sub routing — statefulness quarantined at the edge." },
+  { prompt: "A gateway holding 100k sockets dies. Without jittered reconnect backoff, the result is…",
+    options: [
+      "a reconnection stampede on survivors",
+      "permanent message loss for those users",
+      "the registry deadlocking on updates",
+      "sockets migrating automatically to peers",
+    ],
+    answer: 0,
+    explain: "100k clients retrying in sync = thundering herd (0010) aimed at your remaining gateways. Jitter + backoff (0022) spreads the wave. Same medicine, third appearance — that's why it's doctrine." },
+  { prompt: "Spaced review — Lesson 0024: 'fetch everything since sequence 8412' after reconnecting is which idea, reapplied?",
+    options: [
+      "consumer offsets against an event log",
+      "cache-aside refill after invalidation",
+      "quorum reads across the replicas",
+      "dead-letter replay from the queue",
+    ],
+    answer: 0,
+    explain: "The conversation is an append-only log; the client is a consumer with a bookmark. Push notifies fast; the offset-pull guarantees completeness. Log thinking, everywhere." },
+]);
+</script>
+</body>
+</html>

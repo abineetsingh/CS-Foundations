@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0031 — Drill: Web Crawler &amp; Notification System</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  details { margin: 1.2rem 0; border: 1px solid var(--rule); border-radius: 8px; padding: 0.8rem 1.1rem; background: #fdfdf4; }
+  details summary { cursor: pointer; font-style: italic; color: var(--accent); }
+  details[open] summary { margin-bottom: 0.6rem; }
+</style>
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0031 · ~45 minutes · Systems Design · drill · Phase 3 capstone</span>
+  <h1>Drill: Web Crawler &amp; Notification System</h1>
+  <p class="lede">Two classics, one sitting — both secretly the same question: queues, retries, rate limits, and fan-out, composed under failure.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>The phase 3 milestone. Both prompts are interview staples <em>because</em> they force async thinking — there's no synchronous design that works. Paper, pen, voice. Attempt fully before each reveal; diff honestly after.</p>
+  </div>
+
+  <h2>Drill A — Web crawler (20 min)</h2>
+  <p><em>Design a crawler that fetches 1 B pages/month, extracts links, and feeds pages to a search indexer. Be polite to websites.</em></p>
+
+  <h3>A1 — Envelope &amp; shape (5 min)</h3>
+  <p>Fetch QPS? What's the core loop? Which phase-3 boxes appear?</p>
+  <details><summary>Compare your answer</summary>
+    <p>10⁹ ÷ (2.6×10⁶ s) ≈ <strong>~400 fetches/s</strong> sustained. Core loop: <strong>URL frontier (a queue, 0023)</strong> → fetcher workers → parse → new links back into the frontier → page content to the indexer <strong>via an event log (0024)</strong> so multiple consumers (indexer, archive, analytics) read independently. The crawler IS a queue-worker system whose workers feed the queue.</p>
+  </details>
+
+  <h3>A2 — The hard parts (10 min)</h3>
+  <p>Handle: politeness (don't hammer one site), duplicate URLs, fetch failures, and crawler crashes. Name the exact mechanism for each.</p>
+  <details><summary>Compare your answer</summary>
+    <p><strong>Politeness</strong> = per-domain rate limiting (0028 token buckets, keyed by domain) + partition the frontier by domain (0016/0024 thinking) so one domain's queue can't flood the fetch fleet; respect robots.txt.
+    <strong>Duplicates</strong>: seen-URL set — at 10B+ URLs, a probabilistic structure (Bloom filter) or sharded KV; dedupe is idempotency (0025) for fetch work.
+    <strong>Failures</strong>: timeouts + capped retries with backoff/jitter (0022); permanently failing URLs → DLQ (0023) with a retry-after-days policy.
+    <strong>Crashes</strong>: ack-after-work (0023) so in-flight URLs redeliver; fetch is naturally idempotent (re-fetching a page is safe).</p>
+  </details>
+
+  <h2>Drill B — Notification system (20 min)</h2>
+  <p><em>Design notifications for a social app: likes, comments, follows → push/email/in-app, 100 M events/day, users can mute channels. No duplicate notifications.</em></p>
+
+  <h3>B1 — Shape &amp; API (5 min)</h3>
+  <details><summary>Compare your answer</summary>
+    <p>100 M/day ≈ 1,000 events/s. Shape: producing services emit domain events (like_created…) to an <strong>event log</strong> (they should NOT call a notification API synchronously — 0030's loose coupling); a notification service consumes, applies preferences/mutes, renders per channel, and enqueues delivery jobs per channel (<strong>queues</strong> — push/email have wildly different rates and failure modes, so separate queues + workers per channel). In-app unread counts: cached counters (0009). API: <code>GET /notifications?cursor=…</code>, <code>PUT /preferences</code>.</p>
+  </details>
+
+  <h3>B2 — The guarantees (10 min)</h3>
+  <p>"No duplicates" + "don't lose them" — which delivery guarantee, enforced where? What about a dead push-provider? Batching ("Ada and 12 others liked…")?</p>
+  <details><summary>Compare your answer</summary>
+    <p>At-least-once end to end (0025) + <strong>idempotency at the delivery edge</strong>: notification id = hash(user, event, channel); the delivery worker checks-and-records it transactionally before sending (0025's dedupe recipe — "exactly-once" enforced at the last hop, where it matters).
+    <strong>Dead provider</strong> (APNs/email down): the channel's queue absorbs (0023), retries with backoff; if hard-down, DLQ + alert; other channels unaffected — failure isolated per queue.
+    <strong>Batching</strong>: aggregate in a short window (30–60 s) keyed by (user, object) before rendering — a deliberate latency-for-quality trade you should declare out loud. Muted channels drop at the consumer, cheaply, before any queueing.</p>
+  </details>
+
+  <h2>Self-score</h2>
+  <ul>
+    <li>Did a queue/log appear in your first sketch, unprompted? (If your design was synchronous, re-read 0023 — that's the phase's core reflex.)</li>
+    <li>For every network edge: did you state its timeout/retry/idempotency story? (0022 is a per-edge tax, not a chapter.)</li>
+    <li>Did you place the dedupe exactly where duplicates become user-visible?</li>
+    <li>Note your misses for your teacher — they calibrate what to review before phase 4.</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/web-crawler">Hello Interview — Web Crawler breakdown</a> (after your attempt). Optional but excellent from here on: the <a href="https://fly.io/dist-sys/">Gossip Glomers</a> challenges 1–3 in Python — real distributed exercises graded by Jepsen's Maelstrom, and phase 3 is exactly the preparation they assume.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0030-monolith-vs-microservices.html">◀ 0030 Monolith vs Microservices</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0032-containers.html">0032 Containers ▶</a></p>
+    <p><strong>Phase 3 complete.</strong> You can now design systems that expect failure. Phase 4: actually running them — containers, deploys, observability, incidents. Debrief your drill answers with your teacher first.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  { prompt: "The crawler's URL frontier is fundamentally…",
+    options: [
+      "a queue its own workers refill",
+      "a database of every known URL",
+      "a stack for depth-first crawling",
+      "a cache of recently fetched pages",
+    ],
+    answer: 0,
+    explain: "Fetch workers consume URLs AND produce newly discovered ones back into it — a self-feeding queue-worker loop. (The seen-set is the database; the frontier is the work.)" },
+  { prompt: "Politeness — capping fetches per website — is which pattern, re-aimed?",
+    options: [
+      "token buckets keyed by domain",
+      "load shedding at the gateway",
+      "consistent hashing across the fetchers",
+      "circuit breaking on slow sites",
+    ],
+    answer: 0,
+    explain: "Rate limiting (0028), but protecting THEIR servers from you rather than yours from them. Same bucket, inverted direction — plus per-domain frontier partitions so one site can't hog the fleet." },
+  { prompt: "Why do producing services emit events instead of calling the notification service directly?",
+    options: [
+      "notification outages then can't break posting",
+      "events travel faster than API calls",
+      "direct calls cannot carry user preferences",
+      "the log encrypts sensitive event payloads",
+    ],
+    answer: 0,
+    explain: "Loose coupling (0030): likes must keep working when notifications are down. The log buffers; the consumer catches up. A synchronous call chain inverts that dependency." },
+  { prompt: "'Never notify twice' is enforced by…",
+    options: [
+      "transactional dedupe at the delivery worker",
+      "exactly-once delivery from the log",
+      "deduplicating events at the producer",
+      "the push provider filtering repeats",
+    ],
+    answer: 0,
+    explain: "Delivery is at-least-once everywhere (0025) — so the last hop before the user checks-and-records the notification id atomically, then sends. Dedupe lives where duplicates become visible." },
+  { prompt: "Spaced review — Lesson 0026: the crawler's coordinator node ('which worker owns which domain partition') should live in…",
+    options: [
+      "a consensus store like etcd",
+      "the largest fetcher's local memory",
+      "a table in the search indexer",
+      "the frontier queue's first message",
+    ],
+    answer: 0,
+    explain: "Small critical fact + must survive failures + exactly-one-owner semantics = consensus territory (leader election / membership in etcd or ZooKeeper). Tiny strong core; big eventual body." },
+]);
+</script>
+</body>
+</html>

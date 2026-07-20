@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0018 — Consistency Models &amp; CAP</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0018 · ~25 minutes · Systems Design · Phase 2</span>
+  <h1>Consistency Models &amp; CAP</h1>
+  <p class="lede">One skill, learned today: state precisely what guarantee your reads have — and handle the CAP theorem without reciting the caricature.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>You've been paying an IOU since lesson 0009: "stale," "eventually consistent," "read-your-writes" — used, not defined. Interviews cash this check directly ("is your design strongly consistent? where does it need to be?"), and CAP is the most name-dropped — and most misquoted — theorem in the field. You'll be the one quoting it right.</p>
+  </div>
+
+  <h2>The spectrum of promises</h2>
+  <p>A consistency model is a contract about <em>what reads may return</em> in a replicated system. Ordered strongest to weakest <a href="https://jepsen.io/consistency">[Jepsen: consistency models]</a>:</p>
+  <table>
+    <tr><th>Model</th><th>The promise</th><th>Feels like</th></tr>
+    <tr><td><strong>Linearizable</strong> ("strong")</td><td>every read sees the latest completed write, system-wide</td><td>one single database, no copies — the illusion is total</td></tr>
+    <tr><td>Read-your-writes</td><td><em>you</em> always see your own writes; others may lag</td><td>lesson 0015's fix, now with its formal name</td></tr>
+    <tr><td>Monotonic reads</td><td>you never see time go backwards (data appearing then vanishing)</td><td>refresh never "un-shows" a comment</td></tr>
+    <tr><td><strong>Eventual</strong></td><td>stop writing, and replicas converge… eventually</td><td>the weakest useful promise — and often plenty</td></tr>
+  </table>
+  <p>Stronger = simpler to program against, slower and less available. Weaker = fast and resilient, but every consumer must tolerate anomalies. The design skill is the one you've been rehearsing since caching: <strong>classify each data path by the weakest model it can tolerate</strong>. Balances: linearizable. Timelines: eventual. Profile edits: read-your-writes.</p>
+
+  <h2>CAP, stated correctly</h2>
+  <p>The theorem <a href="https://www.ibm.com/think/topics/cap-theorem">[IBM: CAP theorem]</a>: when a network <a href="../reference/glossary.html#partition-network">partition</a> cuts your replicas off from each other — and given enough time it will — each side must choose: <strong>refuse requests</strong> (stay Consistent, lose Availability) or <strong>keep answering</strong> (stay Available, risk divergent/stale data). That's it. Not "pick 2 of 3 at the store" — P isn't optional, and the choice only bites <em>during</em> partitions:</p>
+  <div id="flow"></div>
+  <p>Two upgrades that mark a strong candidate: <strong>(1)</strong> CP/AP is per-<em>operation</em>, not per-system — your checkout can refuse while your browse stays up. <strong>(2)</strong> <a href="https://en.wikipedia.org/wiki/PACELC_design_principle">PACELC</a>: even with no partition (Else), you still trade Latency vs Consistency — waiting for replicas to confirm every write is the price of strong reads on them. Partitions are rare; the E-L-C trade runs 24/7.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Rate-limit counters for an LLM API are a textbook consistency choice: count linearizably (every token check hits one consistent store — accurate, slow, and it melts) or eventually (each region counts locally, syncs async — fast, and a user can briefly exceed their quota during a partition). Every provider picks eventual and eats the overshoot. Now you know the vocabulary they decided with.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://jepsen.io/consistency">Jepsen's consistency-models map</a> (from Kyle Kingsbury, whose Gossip Glomers challenges await you after phase 3) — bookmark it; skim only the models named today. DDIA 2nd ed. ch. 10 for the full treatment when you're ready.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0017-nosql-landscape.html">◀ 0017 The NoSQL Landscape</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0019-object-storage.html">0019 Object Storage ▶</a></p>
+    <p>Heavy lesson — two passes is normal. Next one's lighter: where the images live. Ask your teacher to drill "which consistency model does X need?" — it's a high-yield rep.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "c1", label: "Client West" },
+    { id: "c2", label: "Client East" },
+    { id: "r1", label: "Replica West", sub: "x = 5", row: 1 },
+    { id: "r2", label: "Replica East", sub: "x = 5", row: 1 },
+  ],
+  links: [["c1","r1"], ["c2","r2"], ["r1","r2"]],
+  steps: [
+    { at: ["r1", "r2"],
+      caption: "Two replicas, both holding x = 5, syncing over the network link between them. Healthy days: writes propagate, reads are fresh-ish, everyone's happy." },
+    { at: ["r1"],
+      caption: "⚡ PARTITION: the link between datacenters dies. Both replicas are alive and reachable by their local clients — they just can't see each other. This is the P in CAP, and it is not optional." },
+    { from: "c1", to: "r1", packet: "write x = 9",
+      caption: "Client West writes x = 9 to its replica. Replica West cannot tell Replica East. Now the system must choose a personality:" },
+    { from: "c2", to: "r2", packet: "read x → ???",
+      caption: "Client East asks its replica for x. Replica East knows it might be stale. Choice time." },
+    { from: "r2", to: "c2", packet: "CP: error, retry later",
+      caption: "Choose CONSISTENCY: refuse to answer rather than risk serving old data. Correct, and unavailable — banks and inventory pick this. 'I'd rather be down than wrong.'" },
+    { from: "r2", to: "c2", packet: "AP: x = 5 (stale)",
+      caption: "Choose AVAILABILITY: answer with the possibly-stale 5. Up, and wrong-ish — feeds, carts, likes pick this. 'I'd rather be wrong than down.'" },
+    { at: ["r1", "r2"],
+      caption: "Partition heals. AP systems now reconcile the divergence (last-write-wins, merges — each with its own scars). CP systems simply resume. Neither choice was free; both were CHOSEN, per operation, in advance. That's CAP used properly." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "CAP's actual claim, precisely:",
+    options: [
+      "during partitions, pick consistency or availability",
+      "systems permanently pick two properties, ever",
+      "consistency requires giving up all partitions",
+      "availability is impossible in distributed systems",
+    ],
+    answer: 0,
+    explain: "P isn't a menu item — partitions happen to you. The theorem only forces the C-vs-A choice while one is in progress. The 'pick 2 of 3' phrasing is the caricature." },
+  { prompt: "You see a comment, refresh, and it's gone — then it's back. Which guarantee was missing?",
+    options: [
+      "monotonic reads across the replicas",
+      "durability of the committed comment",
+      "atomicity of the posting transaction",
+      "linearizability of the delete operation",
+    ],
+    answer: 0,
+    explain: "Your reads hopped between a caught-up replica and a lagging one — time went backwards. Monotonic reads (e.g., pin a session to one replica) forbids exactly this." },
+  { prompt: "Which pairing is CORRECTLY matched to its model?",
+    options: [
+      "inventory checkout: linearizable; timeline: eventual",
+      "timeline: linearizable; inventory checkout: eventual",
+      "both linearizable, safety must come first",
+      "both eventual, speed must come first",
+    ],
+    answer: 0,
+    explain: "Selling the last item twice is money lost — checkout needs the latest truth. A 2-seconds-stale timeline is invisible. Classify per path; never one model for everything." },
+  { prompt: "PACELC's addition to CAP:",
+    options: [
+      "no partition still trades latency, consistency",
+      "partitions can be prevented with redundancy",
+      "elections must decide the surviving side",
+      "caches violate every consistency model",
+    ],
+    answer: 0,
+    explain: "Else (normal operation): strong consistency means waiting for replica confirmation on the write path — a latency tax paid always, not just during rare partitions." },
+  { prompt: "Spaced review — Lesson 0015: async leader–follower replication delivers which model on follower reads, by default?",
+    options: [
+      "eventual consistency, with lag anomalies",
+      "linearizability, the leader enforces it",
+      "read-your-writes, sessions are automatic",
+      "monotonic reads, followers apply in order",
+    ],
+    answer: 0,
+    explain: "Followers trail the leader — reads can be stale, your own write can be missing, and hopping followers can time-travel. The mitigations (0015) BUY the stronger models." },
+]);
+</script>
+</body>
+</html>

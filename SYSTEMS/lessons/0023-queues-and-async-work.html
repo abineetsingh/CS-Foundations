@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0023 — Queues &amp; Async Work</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0023 · ~30 minutes · Systems Design · hands-on · Phase 3</span>
+  <h1>Queues &amp; Async Work</h1>
+  <p class="lede">One skill, learned today: take slow work out of the request path — answer now, work later, survive burst and failure via a queue.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Lesson 0011 flagged v1's second honest gap: everything synchronous — the client waits for every step. The message queue is the box that fixes it, and it's the most common "how would you improve this?" answer in interviews: video encoding, email sending, feed fan-out, image thumbnails — anything slow, bursty, or failable belongs behind one.</p>
+  </div>
+
+  <h2>The move: decouple asking from doing</h2>
+  <p>Uploading a video shouldn't hold the user hostage for the 10 minutes it takes to transcode. Split the work: the request path does the minimum (record intent, enqueue a job, return <code>202 Accepted</code>); <a href="../reference/glossary.html#worker">workers</a> — a separate fleet of processes — consume jobs at their own pace. The <a href="../reference/glossary.html#message-queue">queue</a> between them (SQS, RabbitMQ, Redis lists; your DSA 0011 deque, industrialized) is a durable buffer that grants four powers <a href="https://aws.amazon.com/message-queue/">[AWS: message queues]</a>:</p>
+  <table>
+    <tr><th>Power</th><th>Meaning</th></tr>
+    <tr><td><strong>Latency</strong></td><td>the user waits for the enqueue (~ms), not the work (~minutes)</td></tr>
+    <tr><td><strong>Burst absorption</strong></td><td>10,000 uploads in one minute → queue depth grows; workers drain steadily. The spike becomes a slope</td></tr>
+    <tr><td><strong>Failure isolation</strong></td><td>workers crash or the encoder is down → jobs wait safely; nothing user-facing breaks (0022's lessons apply to workers, not users)</td></tr>
+    <tr><td><strong>Independent scaling</strong></td><td>queue deepening? add workers — a scaling signal so clean that autoscalers (0033) key off it directly</td></tr>
+  </table>
+  <div id="flow"></div>
+
+  <h2>The mechanics that make it production-grade</h2>
+  <ul>
+    <li><strong>Ack after work, not before:</strong> a worker takes a job (invisible to others, not deleted), does the work, <em>then</em> acknowledges. Crash mid-job → visibility timeout expires → job reappears for another worker. Nothing is lost — but note: this means jobs can be delivered <em>twice</em> (crash after work, before ack — case (c) again!). Workers must be idempotent. This is why lesson 0022 came first.</li>
+    <li><strong>Dead-letter queue (DLQ):</strong> a job that fails N times (poison message — malformed video, bug-triggering input) moves to a side queue for humans, instead of retrying forever and jamming the line.</li>
+    <li><strong><a href="../reference/glossary.html#backpressure">Backpressure</a>:</strong> producers outpacing consumers <em>forever</em> means unbounded queue growth — hiding the problem, then failing catastrophically. Bounded queues + "slow down" signals (429s upstream) surface the truth early. A queue absorbs bursts; it cannot absorb a permanent rate mismatch.</li>
+  </ul>
+
+  <h2>Hands-on: a queue in 30 lines (15 min)</h2>
+  <p>Simulate the whole architecture with Python's stdlib — run it, then kill a worker mid-job and watch redelivery:</p>
+  <pre><code>import threading, queue, time, random
+
+jobs: queue.Queue = queue.Queue()
+
+def producer():
+    for i in range(20):                      # a burst of 20 uploads at once
+        jobs.put({"job_id": i, "video": f"cat_{i}.mp4"})
+    print("producer: burst enqueued, returning 202s to users")
+
+def worker(name: str):
+    while True:
+        job = jobs.get()                     # take (blocks when empty)
+        try:
+            time.sleep(random.uniform(0.3, 0.8))          # "transcoding"
+            if random.random() &lt; 0.15:                    # simulated crash
+                raise RuntimeError("worker died mid-job")
+            print(f"{name}: done {job['video']}")
+            jobs.task_done()                 # ack AFTER work
+        except RuntimeError:
+            print(f"{name}: CRASHED on {job['video']} — requeueing")
+            jobs.put(job)                    # redelivery (real queues do this via timeout)
+            jobs.task_done()
+
+threading.Thread(target=producer).start()
+for n in ("w1", "w2", "w3"):
+    threading.Thread(target=worker, args=(n,), daemon=True).start()
+jobs.join()
+print("queue drained.")</code></pre>
+  <p>Watch: the burst enqueues instantly (users are gone, happy); three workers drain it steadily; crashed jobs reappear and complete on another worker. Re-run with one worker vs five — <em>that</em> is independent scaling.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Batch inference is this lesson at GPU prices: requests queue up, GPU workers drain them in batches, queue depth drives autoscaling, poison prompts go to DLQs. And long-running agents ARE workers — a task queue feeding tool-wielding consumers, with idempotent steps because redelivery happens. The Anthropic Batches API's "submit now, results later" is a 202 + queue, productized.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://aws.amazon.com/builders-library/avoiding-insurmountable-queue-backlogs/">AWS Builders' Library — Avoiding insurmountable queue backlogs</a> (20 min): what happens when queues stop being buffers and become debt.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0022-partial-failure.html">◀ 0022 Partial Failure</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0024-streams-and-event-logs.html">0024 Streams &amp; Event Logs ▶</a></p>
+    <p>Queues hand each job to ONE worker and forget. Next: the log that remembers everything and lets many consumers read it — Kafka's idea. Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "user", label: "User", sub: "uploads video" },
+    { id: "api", label: "API", sub: "fast path only" },
+    { id: "q", label: "Queue", sub: "durable buffer", row: 1 },
+    { id: "w1", label: "Worker 1", sub: "transcoder", row: 1 },
+    { id: "w2", label: "Worker 2", sub: "transcoder", row: 1 },
+  ],
+  links: [["user","api"], ["api","q"], ["q","w1"], ["q","w2"]],
+  steps: [
+    { from: "user", to: "api", packet: "POST /videos",
+      caption: "Upload lands (bytes went to object storage via presigned URL — 0019; this is the 'process it' request)." },
+    { from: "api", to: "q", packet: "enqueue {job}",
+      caption: "The API does only fast things: metadata row, enqueue job, done. Total: ~10 ms." },
+    { from: "api", to: "user", packet: "202 Accepted",
+      caption: "202: 'received, working on it' — the async status code. The user is FREE. The 10-minute transcode hasn't started and doesn't need to have." },
+    { from: "q", to: "w1", packet: "job → (invisible)",
+      caption: "Worker 1 takes the job. Not deleted — INVISIBLE, with a visibility timeout. If w1 vanishes, the job resurfaces. Ack comes only after the work." },
+    { at: "w1",
+      caption: "💥 Worker 1 dies mid-transcode. In the synchronous world this was a user-facing error. Here: nobody notices. The visibility timeout ticks…" },
+    { from: "q", to: "w2", packet: "same job, redelivered",
+      caption: "…and expires; the job reappears; Worker 2 takes it. Note what this implies: the job may run 1.5 times — partial work from w1, full work from w2. Idempotent workers (0022!) make that harmless." },
+    { from: "w2", to: "q", packet: "ack ✓ (after work)",
+      caption: "Work done → THEN ack → now the queue deletes it. Meanwhile a 10,000-upload burst is just a deeper queue: workers drain the slope; autoscaling adds workers when depth grows." },
+    { at: ["q"],
+      caption: "The caveats that make you credible: bounded queues + backpressure (a queue absorbs bursts, not permanent rate mismatch), and a DLQ for poison jobs that fail N times. Buffer, not landfill." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Why does the worker ack AFTER completing the job?",
+    options: [
+      "crashes then cause redelivery, not loss",
+      "acking early would block other workers",
+      "the queue bills per acknowledged message",
+      "ordering breaks if acks come first",
+    ],
+    answer: 0,
+    explain: "Ack-before-work + crash = job deleted, work never done, silently. Ack-after-work + crash = job redelivered — at-least-once delivery, which idempotency makes safe." },
+  { prompt: "The queue's depth graph climbs steadily for 6 hours and never drains. This means…",
+    options: [
+      "consumers are permanently outpaced, act",
+      "the system is working as designed",
+      "the DLQ needs more capacity",
+      "visibility timeouts are too short",
+    ],
+    answer: 0,
+    explain: "Bursts make spikes that drain; a sustained climb is rate mismatch — debt, not buffering. Add workers or apply backpressure upstream before it fails big." },
+  { prompt: "A malformed job crashes every worker that touches it, forever. The mechanism that saves the queue:",
+    options: [
+      "dead-letter queue after N failures",
+      "exponential backoff between the retries",
+      "a second queue for large jobs",
+      "sharding jobs across worker pools",
+    ],
+    answer: 0,
+    explain: "Poison messages retry infinitely without a DLQ, burning workers and jamming throughput. After N strikes, sideline it for humans; the line moves on." },
+  { prompt: "Spaced review — Lesson 0022: redelivery means a job might execute 1.5 times. The property that makes this safe:",
+    options: [
+      "idempotent processing keyed per job",
+      "exponential backoff on each redelivery",
+      "transactions spanning queue and worker",
+      "timeouts bounding every network call",
+    ],
+    answer: 0,
+    explain: "At-least-once delivery is the queue's honest promise; idempotent workers (dedupe by job_id) convert 'at least once' into 'effectively once'. The 0022 trio, reapplied." },
+  { prompt: "Spaced review — Lesson 0002: the API returns 202 rather than 200 because…",
+    options: [
+      "work is accepted, not yet done",
+      "the response body has no content",
+      "the resource was newly created",
+      "the client must retry again later",
+    ],
+    answer: 0,
+    explain: "202 Accepted is HTTP's async vocabulary: 'received; processing continues elsewhere.' Pair it with a status URL the client can poll (or a webhook/notification later)." },
+]);
+</script>
+</body>
+</html>

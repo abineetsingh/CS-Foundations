@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0034 — CI/CD &amp; Safe Releases</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0034 · ~25 minutes · Systems Design · Phase 4</span>
+  <h1>CI/CD &amp; Safe Releases</h1>
+  <p class="lede">One skill, learned today: ship changes to a live system the way production teams do — pipeline, canary, instant rollback — and treat deploys as the risk they statistically are.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Most outages aren't caused by hardware or traffic — they're caused by <em>changes we made</em>. How you release is therefore a reliability decision, not a tooling detail. Interviewers probe it with "how do you deploy this safely?", and the capstone will ship through a pipeline you understand.</p>
+  </div>
+
+  <h2>CI: the pipeline that guards the artifact</h2>
+  <p><a href="../reference/glossary.html#ci-cd">Continuous Integration</a>: every commit automatically triggers a pipeline — lint → tests → build the container image (0032) → push to registry. The output is a <em>verified, immutable, versioned artifact</em> (<code>notes-api:git-abc123</code>). No artifact ships that didn't pass; no human builds "special" versions on laptops. CD (continuous delivery/deployment) extends the pipeline to environments: staging automatically, production via strategy below <a href="https://docs.github.com/en/actions/about-github-actions/understanding-github-actions">[GitHub Actions]</a>.</p>
+
+  <h2>Release strategies: exposure control</h2>
+  <p>All modern strategies exploit the same property: immutable v1 still exists while v2 rolls out (0032's insight). The game is <strong>limiting how many users can be hurt by a bad version, and how fast you can un-hurt them</strong>:</p>
+  <table>
+    <tr><th>Strategy</th><th>How</th><th>Tradeoff</th></tr>
+    <tr><td><strong>Rolling</strong></td><td>replace pods a few at a time (K8s Deployments' default — 0033)</td><td>simple, no extra capacity; both versions serve at once (compat needed!); blast radius grows as it proceeds</td></tr>
+    <tr><td><strong>Blue/green</strong></td><td>full v2 fleet stands up beside v1; flip the router; keep v1 warm</td><td>instant flip and instant rollback; costs 2× capacity during the change</td></tr>
+    <tr><td><strong>Canary</strong></td><td>v2 gets 1% of traffic → watch error rate &amp; latency (0035's metrics!) → 5% → 25% → 100%; auto-rollback on regression</td><td>the production standard: real traffic as the final test, blast radius capped at each stage</td></tr>
+  </table>
+  <div id="flow"></div>
+  <p>Two force-multipliers to name alongside: <strong>feature flags</strong> decouple <em>deploy</em> from <em>release</em> — code ships dark, the feature turns on per-user/percentage at runtime, and "rollback" of a feature is a toggle, not a deploy (this is how big launches actually happen). And <strong>compatibility discipline</strong>: rolling/canary means old and new run simultaneously, so DB migrations must be backward-compatible (expand → migrate → contract: add the new column, ship code reading both, remove the old later — never rename in one step).</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Model releases are canary deployments with eval-shaped metrics: new model serves a traffic slice; dashboards compare refusal rates, latency, quality scores against baseline; regression → auto-rollback to the prior checkpoint (immutable artifacts — a model version is the ultimate one). And A/B testing is the canary mechanism pointed at product questions instead of safety ones. Same machinery, three uses.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://sre.google/sre-book/release-engineering/">Google SRE book — Release Engineering</a> (20 min, free): the philosophy of boring, repeatable, rollback-first releases from the people who page when it goes wrong.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0033-orchestration.html">◀ 0033 Orchestration</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0035-observability.html">0035 Observability ▶</a></p>
+    <p>Canaries only work if you can SEE error rates and latency — next lesson builds those eyes. Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "git", label: "git push", sub: "commit abc123" },
+    { id: "ci", label: "CI pipeline", sub: "test → build → push" },
+    { id: "v1", label: "v1 fleet", sub: "99% traffic", row: 1 },
+    { id: "v2", label: "v2 canary", sub: "1% traffic", row: 1 },
+    { id: "metrics", label: "Metrics", sub: "errors · p99", row: 1 },
+  ],
+  links: [["git","ci"], ["ci","v2"], ["v1","metrics"], ["v2","metrics"]],
+  steps: [
+    { from: "git", to: "ci", packet: "commit abc123",
+      caption: "Push triggers the pipeline: lint, tests, build image notes-api:abc123, push to registry. Red pipeline = nothing ships. The artifact is born verified and immutable." },
+    { from: "ci", to: "v2", packet: "deploy canary (1%)",
+      caption: "The canary stage: v2 receives 1% of real production traffic. Real data, real users, real dependencies — the test no staging environment can fully be." },
+    { from: "v2", to: "metrics", packet: "errors: 0.1% · p99: 80ms",
+      caption: "Watch v2's vitals AGAINST v1's baseline (not against zero — v1 has errors too). Minutes pass. Error rate matches, latency matches. Promote: 5%… 25%…" },
+    { from: "v2", to: "metrics", packet: "at 25%: errors 4% ⚠",
+      caption: "At 25%, a regression surfaces — error rate jumps 40× baseline. A quarter of users are exposed, not all. The blast radius did its job. Now the only move that matters:" },
+    { from: "metrics", to: "v1", packet: "auto-rollback → 100% v1",
+      caption: "Rollback = route everything back to v1 — which never stopped existing (immutability!). Seconds, automatic, no debugging at 3am. Diagnose abc123 tomorrow, calmly, in daylight." },
+    { at: ["v1", "v2"],
+      caption: "The doctrine in one line: deploys are the leading cause of outages, so ship small, watch baselines, cap exposure, and make undo instant. Feature flags push it further — release without deploying at all." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Canary beats staging-only testing because…",
+    options: [
+      "real traffic exercises what staging can't",
+      "canaries need no automated test suites",
+      "staging environments cost more to run",
+      "users prefer gradual feature arrivals",
+    ],
+    answer: 0,
+    explain: "Staging never fully reproduces production's data shapes, traffic mix, and dependency weather. The canary uses production itself as the last test — with the blast radius capped at 1%." },
+  { prompt: "Instant rollback is possible precisely because…",
+    options: [
+      "the old version still exists unchanged",
+      "pipelines can rebuild any old commit",
+      "databases snapshot before every deploy",
+      "the router caches previous responses",
+    ],
+    answer: 0,
+    explain: "Immutable artifacts (0032): v1's image is untouched in the registry, its pods possibly still warm. Rollback = route to it. Rebuild-from-commit takes minutes you don't have mid-incident." },
+  { prompt: "During a rolling deploy, renaming a database column in the same release causes…",
+    options: [
+      "old pods crashing on missing columns",
+      "the deploy pausing until migration ends",
+      "both versions sharing the new name",
+      "nothing, migrations apply atomically",
+    ],
+    answer: 0,
+    explain: "Old and new code run SIMULTANEOUSLY mid-rollout; old code queries the old name, which is gone. Expand → migrate → contract: add new, dual-read, remove old releases later." },
+  { prompt: "Feature flags decouple which two things?",
+    options: [
+      "deploying code and releasing features",
+      "building images and pushing registries",
+      "testing changes and reviewing them",
+      "scaling fleets and routing traffic",
+    ],
+    answer: 0,
+    explain: "Code ships dark; the flag turns the feature on per-cohort at runtime. Launch day needs no deploy, and feature-rollback is a toggle — decoupling risk from shipping." },
+  { prompt: "Spaced review — Lesson 0033: 'kubectl rollout' shifting pods v1→v2 a few at a time is the reconcile loop enforcing…",
+    options: [
+      "a gradually updated desired state",
+      "the observed state of old pods",
+      "consensus between the two versions",
+      "queue depth across the fleet",
+    ],
+    answer: 0,
+    explain: "The Deployment's desired state changes incrementally (2 new pods, then 2 more…); reconciliation does the replacing. Rolling deploys are declare-and-reconcile applied to change itself." },
+]);
+</script>
+</body>
+</html>

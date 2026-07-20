@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0043 — Drill: News Feed</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+<style>
+  details { margin: 1.2rem 0; border: 1px solid var(--rule); border-radius: 8px; padding: 0.8rem 1.1rem; background: #fdfdf4; }
+  details summary { cursor: pointer; font-style: italic; color: var(--accent); }
+  details[open] summary { margin-bottom: 0.6rem; }
+</style>
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0043 · ~50 minutes · Systems Design · drill · Phase 5</span>
+  <h1>Drill: News Feed</h1>
+  <p class="lede">The fan-out question, finally answered in full: push vs pull, the celebrity problem, and the hybrid every real feed runs. Timer on.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Design the Twitter/Instagram feed" is the genre's crown jewel because one decision — <em>when is the feed assembled?</em> — cascades through storage, caching, and cost. You've circled it since lesson 0011; today you own it. This is also where your two prior drills compound: run the 0040 stages briskly and spend everything on stage 5.</p>
+  </div>
+
+  <h2>The prompt</h2>
+  <p><em>Home timeline for 200 M DAU: users follow others; the feed shows followees' recent posts, newest-first, infinite scroll. Median user follows 400, is followed by 400. A celebrity has 100 M followers. Feed load p99 &lt; 300 ms.</em></p>
+
+  <h3>Stages 1–4, briskly (20 min)</h3>
+  <details><summary>Compare your answer</summary>
+    <p><strong>Envelope verdicts:</strong> reads (feed loads, ~10/user/day = 20k QPS avg, 100k peak) dwarf writes (~2 posts/user/day ≈ 5k/s); the real multiplier hides in fan-out: one median post touches 400 followers' feeds. <strong>API:</strong> <code>GET /feed?cursor=…</code> (cursor, not offset — 0002), <code>POST /posts</code>. <strong>Data:</strong> posts (0012's schema + (user_id, created_at) index — 0013), follows, and — the new table — a <strong>feed cache per user</strong> (Redis list of post_ids, capped ~800 entries). <strong>HLD:</strong> 0011's diagram + a queue (0023) between posting and feed-building. Ranking: descope to reverse-chron aloud ("ranking is an ML system on top; the infrastructure question is the same").</p>
+  </details>
+
+  <h3>Stage 5 — the fan-out fork (25 min)</h3>
+  <p>Attempt each before opening: <strong>(a)</strong> define fan-out-on-write vs fan-out-on-read and cost each with the envelope numbers. <strong>(b)</strong> now the celebrity posts — what breaks in each model? <strong>(c)</strong> design the hybrid.</p>
+  <details><summary>Compare: (a) the two pure models</summary>
+    <p><strong>Fan-out-on-write (push):</strong> when Ada posts, a worker fleet (0023) prepends the post_id into each of her 400 followers' Redis feed lists. Feed read = one Redis fetch: <strong>O(1), ~1 ms — the p99 budget loves it</strong>. Cost: 5k posts/s × 400 = 2M list-writes/s (workers + Redis scale for this — feasible), and work is wasted on dormant users (skip fan-out to users inactive &gt;30 days; they rebuild on return).</p>
+    <p><strong>Fan-out-on-read (pull):</strong> feed load = fetch your 400 followees' recent posts (400 index hits — 0013's (user_id, created_at) earning its keep) and merge — your DSA k-way merge (heap!) in production. No write amplification, always fresh; but 400 reads + merge × 100k QPS at p99&lt;300 ms = the read path melts. Pure pull fails the latency requirement; SAY that with the numbers.</p>
+  </details>
+  <details><summary>Compare: (b) the celebrity breaks push</summary>
+    <p>One post → <strong>100 M list-writes</strong>. At even 1M/s that's 100 seconds of a saturated worker fleet — per celebrity post; a busy news day melts feed freshness for everyone (hot-key, 0016, in its most famous costume). Pull, meanwhile, handles celebrities fine: their posts are read straight from the posts table (hot → cached hard, 0009 — one key serving millions of readers is exactly what caches are for).</p>
+  </details>
+  <details><summary>Compare: (c) the hybrid — the real answer</summary>
+    <p><strong>Push for the many, pull for the few.</strong> Users below a follower threshold (~100k) fan out on write; celebrities don't. Feed read = your precomputed Redis list <strong>+ merge-at-read</strong> of posts from the handful of celebrities you follow (bounded: nobody follows a million celebrities — the merge is ~5-way, milliseconds). Each side's weakness is covered by the other's strength — every large feed you use runs a variant of this. Close with ops instincts: feed-list TTLs + rebuild-from-pull as the fallback (a lost Redis node = slow feeds, not lost data — 0036 degradation, since posts remain the source of truth and feeds are derived data — 0020's pattern).</p>
+  </details>
+  <div id="flow"></div>
+
+  <h2>Self-score</h2>
+  <ul>
+    <li>Did you cost BOTH pure models numerically before choosing? (The hybrid unearned is trivia; earned, it's engineering.)</li>
+    <li>Did "feeds are derived, posts are truth" appear — making cache loss a degradation, not an incident?</li>
+    <li>Did your DSA brain light up at the k-way merge? Cross-domain recall is the point of parallel tracks.</li>
+    <li>Misses → teacher note → request a live mock: "same design, but now add ranking."</li>
+  </ul>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source (post-attempt): <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/fb-news-feed">Hello Interview — Design Facebook's News Feed</a>. Then the classic real-world account: <a href="https://www.infoq.com/presentations/Twitter-Timeline-Scalability/">Raffi Krikorian — Timelines at Scale</a> (Twitter's actual hybrid, from the person who ran it).</p>
+
+  <div class="lesson-footer">
+    <p><a href="0042-drill-chat-system.html">◀ 0042 Drill: Chat System</a> · <a href="../reference/interview-runbook.html">Runbook</a> · <a href="0044-ai-systems-llm-serving.html">0044 AI Systems I: LLM Serving ▶</a></p>
+    <p>Drills complete. The last two content lessons point the whole toolkit at AI systems — your mission's home turf. Debrief first.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "ada", label: "Ada posts", sub: "400 followers" },
+    { id: "celeb", label: "Celebrity posts", sub: "100M followers" },
+    { id: "workers", label: "Fan-out workers", sub: "push path", row: 1 },
+    { id: "redis", label: "Feed lists", sub: "Redis, per user", row: 1 },
+    { id: "posts", label: "Posts store", sub: "truth + hot cache", row: 1 },
+  ],
+  links: [["ada","workers"], ["workers","redis"], ["celeb","posts"], ["redis","posts"]],
+  steps: [
+    { from: "ada", to: "workers", packet: "post → queue",
+      caption: "Ada (median user) posts. The write path: persist to the posts store (truth), then enqueue a fan-out job (0023) — the user's request returned long ago (202 energy)." },
+    { from: "workers", to: "redis", packet: "prepend ×400",
+      caption: "Workers prepend her post_id into 400 followers' Redis lists. 2M list-writes/s fleet-wide at peak — real but provisionable. Dormant followers are skipped (wasted work pruned)." },
+    { from: "celeb", to: "posts", packet: "post → truth only",
+      caption: "The celebrity posts. NO fan-out — 100M list-writes per post would saturate the workers for minutes (the hot key, 0016). The post lands in the store and its cache, and that's all." },
+    { from: "redis", to: "posts", packet: "read: list + merge",
+      caption: "A follower opens their feed: fetch their precomputed list (O(1)) AND pull recent posts from the ~3 celebrities they follow (heavily cached — 0009), k-way merging by timestamp. Your DSA heap, in production." },
+    { at: ["redis", "posts"],
+      caption: "Hybrid economics: push's O(1) reads for the 99.9% of authors who are small; pull's zero write-amplification for the handful who are huge. Threshold ~100k followers. Every planet-scale feed converges here." },
+    { at: ["posts"],
+      caption: "And the ops story that closes the interview: feeds are DERIVED data (0020) — posts are truth. Lose a Redis node → rebuild lists from the follow graph via pull (slow feeds, zero loss). Degradation, not disaster (0036)." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Pure fan-out-on-read fails this prompt specifically because…",
+    options: [
+      "400-way merges can't hit p99 targets",
+      "it duplicates every post 400 times",
+      "followees' posts can't be indexed",
+      "it requires wide-column storage everywhere",
+    ],
+    answer: 0,
+    explain: "Per feed load: 400 index fetches + merge, ×100k QPS, under 300 ms p99 — the read path melts (0005 arithmetic). Push precomputes exactly that work once, at write time." },
+  { prompt: "The celebrity breaks fan-out-on-write because…",
+    options: [
+      "one post triggers 100M list writes",
+      "their posts exceed cache entry limits",
+      "followers refresh faster than workers write",
+      "Redis lists cap at one million",
+    ],
+    answer: 0,
+    explain: "Write amplification = follower count: 100M prepends per post saturates the worker fleet for minutes, starving everyone's freshness. Hot key (0016), feed edition — hence: don't fan out the huge." },
+  { prompt: "The hybrid's feed-read for a user following 400 normals + 3 celebrities is…",
+    options: [
+      "one list fetch plus small merge",
+      "four hundred three index queries merged",
+      "one list fetch, celebrities excluded",
+      "a full rebuild from the graph",
+    ],
+    answer: 0,
+    explain: "Precomputed list (the 400, pushed) + pull from 3 celebrity timelines (cached hot) + k-way merge. Bounded merge because celebrity-follows-per-user is small. Each model covering the other's failure case." },
+  { prompt: "'Feeds are derived data' buys you which operational property?",
+    options: [
+      "cache loss degrades instead of destroys",
+      "feeds update transactionally with posts",
+      "rankings recompute without new writes",
+      "storage costs fall by two-thirds",
+    ],
+    answer: 0,
+    explain: "Posts (truth) can rebuild any feed list via pull — so losing feed caches costs latency, not data (0020's derived-data pattern + 0036's degradation). The interview-closing sentence." },
+  { prompt: "Spaced review — Lesson 0023: the fan-out worker fleet's scaling signal is…",
+    options: [
+      "queue depth of pending fan-out jobs",
+      "the p99 latency of feed reads",
+      "Redis memory across the cluster",
+      "posts per second at the API",
+    ],
+    answer: 0,
+    explain: "Growing queue depth = workers outpaced (a celebrity burst, say) → autoscale on it (0023/0033). Feed-read p99 watches the READ path; the queue watches the write path." },
+]);
+</script>
+</body>
+</html>

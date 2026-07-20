@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency Numbers — Reference Card</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Systems &middot; Reference</span>
+  <h1>Latency Numbers</h1>
+  <p class="lede">The dozen numbers behind every architecture argument. Orders of magnitude — memorize ratios, not digits. Print me.</p>
+
+  <table>
+    <tr><th>Operation</th><th>Time</th><th>Anchor</th></tr>
+    <tr><td>L1 cache reference</td><td>~1 ns</td><td rowspan="3"><strong>Memory: nanoseconds</strong></td></tr>
+    <tr><td>Main memory (RAM) reference</td><td>~100 ns</td></tr>
+    <tr><td>Read 1 MB sequentially from RAM</td><td>~10 µs</td></tr>
+    <tr><td>SSD random read</td><td>~100 µs</td><td rowspan="2"><strong>SSD: microseconds</strong></td></tr>
+    <tr><td>Read 1 MB from SSD</td><td>~1 ms</td></tr>
+    <tr><td>Round trip inside one datacenter</td><td>~0.5 ms</td><td rowspan="4"><strong>Network: milliseconds</strong></td></tr>
+    <tr><td>Spinning-disk seek</td><td>~10 ms</td></tr>
+    <tr><td>Round trip, same continent</td><td>~30–70 ms</td></tr>
+    <tr><td>Round trip, opposite side of Earth</td><td>~150–300 ms</td></tr>
+  </table>
+
+  <h2>Rules that fall out of the table</h2>
+  <ul>
+    <li><strong>Each tier ≈ 1000× the one above.</strong> RAM → SSD → network.</li>
+    <li><strong>Latency = sum of sequential hops.</strong> Count the round trips; the slowest hop dominates.</li>
+    <li><strong>N+1 queries:</strong> N sequential DB calls ≈ N × 1.5 ms. Batch or join instead.</li>
+    <li><strong>Can't beat lightspeed → move data closer:</strong> the entire justification for caches and CDNs.</li>
+    <li><strong>TLS+TCP setup costs extra round trips</strong> before the first byte of your request — why connections are reused (keep-alive, pools).</li>
+  </ul>
+
+  <h2>Estimation crib</h2>
+  <ul>
+    <li>1 day ≈ 86,400 s ≈ <strong>10⁵ s</strong> · 1 month ≈ 2.6 × 10⁶ s · 1 year ≈ 3.15 × 10⁷ s</li>
+    <li>Requests: <code>avg QPS = daily actions / 10⁵</code>; peak ≈ 2–10× average</li>
+    <li>A well-tuned single Postgres box: ~thousands of simple QPS; a Redis box: ~100k ops/s — order-of-magnitude anchors only</li>
+  </ul>
+
+  <div class="lesson-footer">
+    <p>Sources: <a href="https://gist.github.com/jboner/2841832">Jeff Dean's numbers (Bonér gist)</a> · <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html">interactive by-year version</a>. Introduced in <a href="../lessons/0005-latency-numbers.html">Lesson 0005</a>; estimation method in <a href="../lessons/0006-capacity-estimation.html">Lesson 0006</a>.</p>
+  </div>
+</main>
+</body>
+</html>

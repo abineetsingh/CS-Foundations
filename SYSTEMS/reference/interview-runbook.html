@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design Interview Runbook</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .stage { border-left: 3px solid var(--accent); padding: 0.4rem 0 0.4rem 1rem; margin: 1.1rem 0; }
+  .stage h3 { margin: 0 0 0.3rem; }
+  .time { font-family: "SF Mono", Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <span class="kicker">Systems &middot; Reference</span>
+  <h1>Interview Runbook</h1>
+  <p class="lede">The 45-minute algorithm on one page. Keep it beside you for every drill and mock. Print me.</p>
+
+  <div class="stage">
+    <h3>1 · Requirements <span class="time">~5 min</span></h3>
+    <p><strong>Functional</strong> (3–5, descope aloud): "I'll focus on X, Y — skipping Z, fair?"<br>
+    <strong>Non-functional:</strong> scale (DAU), latency target, read:write ratio, consistency needs, availability.<br>
+    <em>Trap:</em> starting to design before scoping. The descope IS the skill.</p>
+  </div>
+
+  <div class="stage">
+    <h3>2 · Envelope <span class="time">~5 min</span></h3>
+    <p>Read QPS &amp; write QPS (daily ÷ 10⁵; peak ×2–10). Storage (items × size × time × replicas). The ratio.<br>
+    <strong>End with a verdict:</strong> "reads dominate 100:1 → cache-first; storage modest → defer sharding."<br>
+    <em>Trap:</em> numbers that don't change the design.</p>
+  </div>
+
+  <div class="stage">
+    <h3>3 · API + data model <span class="time">~5 min</span></h3>
+    <p>Core endpoints (REST nouns, pagination via cursor). Main tables/stores with keys; pick the store per access pattern.<br>
+    <em>Trap:</em> gold-plating. The clock belongs to stage 5.</p>
+  </div>
+
+  <div class="stage">
+    <h3>4 · High-level design <span class="time">~10 min</span></h3>
+    <p>Draw the boxes — client, DNS, CDN, LB, stateless fleet, cache, DB(+replicas), queue where async — <strong>while narrating the read path and write path end to end</strong>. A working v1, no cleverness yet.<br>
+    <em>Trap:</em> a silent diagram. Talk through every arrow.</p>
+  </div>
+
+  <div class="stage">
+    <h3>5 · Deep dives <span class="time">~15 min — where you get hired</span></h3>
+    <p><strong>You propose</strong> the 2–3 hardest problems: the hot key, the fan-out, the consistency call, the failure mode. For each, options costed as "X because Y, alternative costs Z."<br>
+    <em>Trap:</em> waiting to be led. Drive: "the interesting problem is the fan-out — shall I start there?"</p>
+  </div>
+
+  <h2>Meta-skills (score continuously)</h2>
+  <ul>
+    <li><strong>Drive.</strong> Announce structure, narrate transitions, propose deep dives yourself.</li>
+    <li><strong>Tradeoffs out loud, always.</strong> Never a bare product name.</li>
+    <li><strong>Declare budgets unprompted:</strong> staleness, latency, error budget.</li>
+    <li><strong>Pushback = direction.</strong> "Great, that breaks my assumption — two mitigations…"</li>
+    <li><strong>Seniority dial:</strong> junior → clean stage 4; senior → get to stage 5 fast, flag the hard parts first.</li>
+  </ul>
+
+  <h2>Panic list — if you blank</h2>
+  <ol>
+    <li>Say the numbers. Envelope math buys thinking time and looks deliberate.</li>
+    <li>Draw the v1 skeleton (glossary's phase-1 diagram). It's right often enough.</li>
+    <li>Ask "what's the read path? the write path?" — narrating reveals the gaps.</li>
+    <li>Name the classic hard part for this genre: hot key (feeds), ordering (chat), collisions (ids), fan-out (anything social).</li>
+    <li>Reach for the <a href="patterns-cheatsheet.html">patterns cheatsheet</a> triggers.</li>
+  </ol>
+
+  <div class="lesson-footer">
+    <p>From <a href="../lessons/0040-interview-algorithm.html">Lesson 0040</a>; drills <a href="../lessons/0041-drill-url-shortener.html">0041</a>–<a href="../lessons/0043-drill-news-feed.html">0043</a>. Companions: <a href="glossary.html">glossary</a> · <a href="latency-numbers.html">latency card</a> · <a href="patterns-cheatsheet.html">patterns cheatsheet</a>.</p>
+  </div>
+</main>
+</body>
+</html>

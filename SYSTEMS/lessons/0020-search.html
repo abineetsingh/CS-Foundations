@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0020 — Search</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0020 · ~25 minutes · Systems Design · Phase 2</span>
+  <h1>Search</h1>
+  <p class="lede">One skill, learned today: explain why databases can't search text, how an inverted index can, and how a search system stays fed.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Add search" appears in half of all design questions (search tweets, products, videos…) and has a signature wrong answer — <code>LIKE '%query%'</code> — that interviewers wait for you to avoid. The right answer introduces your first <em>derived data system</em>, a pattern that phase 3 generalizes.</p>
+  </div>
+
+  <h2>Why the database fails at this</h2>
+  <p>A B-tree index (0013) needs a <em>sorted prefix</em> to seek into. <code>WHERE text LIKE 'compil%'</code> can use it; <code>WHERE text LIKE '%compiler%'</code> cannot — a match can start anywhere, so the database full-scans every row, O(n) at query time. Ranking ("best match first") makes it worse: SQL has no notion of relevance. Text search needs a different index shape entirely.</p>
+
+  <h2>The inverted index</h2>
+  <p>Flip the mapping: instead of <em>document → words</em>, store <em>word → documents containing it</em> (the "posting list"). Your DSA hash-map instincts (0005) apply directly <a href="https://www.elastic.co/docs/manage-data/data-store/index-basics">[Elasticsearch: index basics]</a>:</p>
+  <pre><code>Documents:                          Inverted index:
+  d1: "the fast compiler"             fast     → [d1, d3]
+  d2: "machines that think"           compiler → [d1, d3]
+  d3: "a fast small compiler"         machine  → [d2]      ← note: normalized!
+                                      think    → [d2]
+                                      small    → [d3]
+
+Query "fast compiler" → lookup both words → intersect [d1,d3] ∩ [d1,d3] → rank → done.
+O(query words), not O(all documents).</code></pre>
+  <p>Building the index does the linguistic work once, at <em>write</em> time — <strong>tokenize</strong> (split words, drop "the"), <strong>normalize</strong> ("Machines" → "machine", stemming) — so queries are hash lookups plus list intersections. Ranking classics: <strong>TF-IDF/BM25</strong> — score documents up for containing rare query words often, down for being long. That's enough ranking vocabulary for interviews.</p>
+
+  <h2>Search as a derived system</h2>
+  <p>Elasticsearch/OpenSearch/Meilisearch run this machinery as a separate service. Critical architecture point: the search index is <strong>derived data</strong> — a transformed, rebuildable copy of database truth, exactly like a cache (0009). And like a cache, it must be fed and it will lag:</p>
+  <div id="flow"></div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>RAG is this lesson with embeddings: BM25 finds documents sharing your <em>words</em>; vector search (0045) finds documents sharing your <em>meaning</em> — an "inverted index" over semantic space using ANN structures (0013's tie-in). Production retrieval is usually <strong>hybrid</strong>: BM25 + vectors, scores fused. Master today's half and the modern half is one new index away.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.elastic.co/docs/manage-data/data-store/index-basics">Elastic — index &amp; analysis basics</a> (15 min) for tokenization and inverted structure in a real engine's words.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0019-object-storage.html">◀ 0019 Object Storage</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0021-drill-photo-sharing-data-layer.html">0021 Drill: Photo-Sharing Data Layer ▶</a></p>
+    <p>Phase 2's toolkit is complete. Next lesson: the drill that assembles all of it. Ask your teacher anything fuzzy first — the drill assumes the toolkit.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "app", label: "App", sub: "writes truth" },
+    { id: "db", label: "Database", sub: "source of truth" },
+    { id: "search", label: "Search cluster", sub: "inverted index", row: 1 },
+    { id: "user", label: "Searcher", row: 1 },
+  ],
+  links: [["app","db"], ["db","search"], ["user","search"]],
+  steps: [
+    { from: "app", to: "db", packet: "INSERT tweet",
+      caption: "A write lands in the database — the source of truth, as always. The search cluster knows nothing yet." },
+    { from: "db", to: "search", packet: "change event →",
+      caption: "The new row flows to the search cluster — via the DB's change stream (CDC: 'change data capture') or an event queue (formalized in lesson 0024). Asynchronously. Sound familiar? It's replication lag's cousin." },
+    { at: "search",
+      caption: "The cluster tokenizes and normalizes the text, then updates posting lists: each word now points at this document. The expensive linguistics happen once, here — never at query time." },
+    { from: "user", to: "search", packet: "\"fast compiler\"",
+      caption: "A search arrives — at the search cluster directly, NOT the database. Two hash lookups, one list intersection, BM25 ranking. Milliseconds over millions of documents." },
+    { from: "search", to: "user", packet: "ranked doc ids",
+      caption: "Results return as ranked ids (+ snippets); the app hydrates full records from DB or cache. New-tweet-not-searchable-for-2s? Eventual consistency (0018), declared and accepted." },
+    { at: ["db", "search"],
+      caption: "The pattern to keep forever: TRUTH in one system, DERIVED projections (cache, search index, and soon: analytics, feeds) fed asynchronously from it, each rebuildable from truth. Phase 3 industrializes that arrow." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Why can't a B-tree index serve LIKE '%compiler%'?",
+    options: [
+      "no sorted prefix to seek into",
+      "text columns can never be indexed",
+      "LIKE bypasses the query planner",
+      "B-trees only store numeric keys",
+    ],
+    answer: 0,
+    explain: "B-trees jump to a position in SORTED order — fine for 'compil%' (a prefix), impossible for matches that start anywhere. Result: full scan per query." },
+  { prompt: "An inverted index maps…",
+    options: [
+      "each word to its containing documents",
+      "each document to its contained words",
+      "each query to its cached results",
+      "each row to its disk position",
+    ],
+    answer: 0,
+    explain: "word → posting list of doc ids. Queries become lookups + intersections, O(query words). The 'document → words' direction is what you already had — and couldn't search." },
+  { prompt: "Tokenization and stemming happen at write time because…",
+    options: [
+      "queries then need only cheap lookups",
+      "documents are illegal to store raw",
+      "read replicas cannot process language",
+      "ranking requires alphabetical posting lists",
+    ],
+    answer: 0,
+    explain: "Do linguistic work once per document, not once per query. The classic systems trade — precompute at write time to make reads cheap — same spirit as caching and denormalization." },
+  { prompt: "A tweet takes ~2 s to become searchable. In interview terms this is…",
+    options: [
+      "acceptable eventual consistency, declared aloud",
+      "a correctness bug requiring synchronous indexing",
+      "replication failure between database replicas",
+      "a stampede waiting for the herd",
+    ],
+    answer: 0,
+    explain: "The index is derived data fed asynchronously — lag is inherent. Declare the staleness budget ('search may trail by seconds') exactly as you did for caches and replicas." },
+  { prompt: "Spaced review — Lesson 0019: full 'design Instagram' storage answer — where do pixels, captions, and searchable text live?",
+    options: [
+      "store, database, search cluster respectively",
+      "database, store, search cluster respectively",
+      "all three replicated in the database",
+      "store, search cluster, database respectively",
+    ],
+    answer: 0,
+    explain: "Bytes → object storage; structured truth (captions, owners) → database; text made findable → inverted index, fed from the DB. Three stores, three access patterns, one system." },
+]);
+</script>
+</body>
+</html>

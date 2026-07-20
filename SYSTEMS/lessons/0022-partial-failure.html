@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0022 — Partial Failure: Timeouts, Retries, Idempotency</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0022 · ~30 minutes · Systems Design · hands-on · Phase 3</span>
+  <h1>Partial Failure: Timeouts, Retries, Idempotency</h1>
+  <p class="lede">One skill, learned today: handle the defining ambiguity of distributed systems — "no response" — without hanging forever or charging a customer twice.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Phase 3 begins with its founding fact: in a distributed system, things fail <em>partially</em>. A single machine either works or it doesn't; two machines connected by a network can each be fine while the conversation between them dies. Every pattern in this phase — queues, guarantees, sagas — descends from today's trio: timeout, retry, idempotency. Interviewers probe it with five words: "what if the call fails?"</p>
+  </div>
+
+  <h2>The ambiguity at the bottom of everything</h2>
+  <p>You call the payment service. No response. Which happened? <strong>(a)</strong> the request never arrived; <strong>(b)</strong> it arrived and the server crashed mid-work; <strong>(c)</strong> the work <em>completed</em> and the reply got lost. From your side these are <em>indistinguishable</em> — and (c) is the poisonous one: the customer was charged and you don't know it <a href="https://dataintensive.net/">[DDIA ch. 9]</a>. Everything below is machinery for acting sanely despite not knowing.</p>
+  <div id="flow"></div>
+
+  <h2>The trio, assembled</h2>
+  <table>
+    <tr><th>Tool</th><th>Rule</th><th>Why</th></tr>
+    <tr><td><strong>Timeout</strong></td><td>every network call has a deadline — no exceptions, ever</td><td>without one, a dead dependency's callers hang, their threads pile up, and the failure climbs the stack. Waiting forever is not patience; it's propagation</td></tr>
+    <tr><td><strong>Retry</strong> (with exponential backoff + jitter)</td><td>wait 1s, 2s, 4s… ± random, capped attempts</td><td>immediate retries kick a struggling server while it's down — a self-inflicted stampede (0010). Backoff gives it air; jitter stops synchronized re-attack <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/">[AWS Builders' Library]</a></td></tr>
+    <tr><td><strong><a href="../reference/glossary.html#idempotency-key">Idempotency key</a></strong></td><td>client sends a unique id per <em>operation</em>; server stores processed ids and returns the saved result for repeats</td><td>makes retries <em>safe</em> — the second "charge $50 [key=abc123]" is recognized and answered, not re-executed. This is how Stripe works <a href="https://docs.stripe.com/api/idempotent_requests">[Stripe: idempotent requests]</a></td></tr>
+  </table>
+  <p>Say the composed rule in interviews: <em>"Timeouts bound the wait, backoff-with-jitter paces the retries, and idempotency keys make retrying safe — so 'no response' becomes a non-event."</em> One more habit: retry <em>budgets</em> — retries multiply traffic exactly when the system is weakest; cap them globally (e.g., retries ≤ 10% of requests), or a bad hour becomes a bad day.</p>
+
+  <h2>Hands-on: build the flaky world (15 min)</h2>
+  <p>New file <code>flaky.py</code> — a payment server that's healthy 60% of the time, plus the (c)-case where work succeeds but the reply dies:</p>
+  <pre><code>import random, uuid
+from fastapi import FastAPI, Header, HTTPException
+
+app = FastAPI()
+charges: dict[str, dict] = {}          # idempotency-key → result
+
+@app.post("/charge")
+def charge(amount: int, idempotency_key: str = Header()):
+    if idempotency_key in charges:               # seen it: replay stored answer
+        return charges[idempotency_key]
+    if random.random() &lt; 0.4:                    # chaos: fail BEFORE work
+        raise HTTPException(status_code=503)
+    result = {"charge_id": str(uuid.uuid4()), "amount": amount}
+    charges[idempotency_key] = result            # work done + recorded together
+    if random.random() &lt; 0.3:                    # chaos: fail AFTER work (case c!)
+        raise HTTPException(status_code=503)
+    return result</code></pre>
+  <p>And a client that survives it, <code>client.py</code>:</p>
+  <pre><code>import httpx, time, random, uuid
+
+def charge_with_retries(amount: int) -&gt; dict:
+    key = str(uuid.uuid4())                      # ONE key for the whole operation
+    for attempt in range(5):
+        try:
+            r = httpx.post("http://localhost:8000/charge",
+                           params={"amount": amount},
+                           headers={"idempotency-key": key}, timeout=2.0)
+            if r.status_code == 200:
+                return r.json()
+        except httpx.TimeoutException:
+            pass
+        time.sleep((2 ** attempt) + random.random())   # backoff + jitter
+    raise RuntimeError("gave up after 5 attempts")
+
+print(charge_with_retries(50))</code></pre>
+  <p>Run the server (<code>fastapi dev flaky.py</code>), then <code>python client.py</code> a few times (<code>pip install httpx</code> first). Watch the win: even when the server 503s <em>after</em> recording the charge, your retry gets the <strong>same charge_id back</strong> — one key, one charge, however many attempts. Then comment out the <code>idempotency_key in charges</code> check and run again: duplicate charge_ids. You've reproduced the industry's most expensive bug class and its fix in 40 lines.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Agent tool-calls live in this lesson permanently: an agent that calls "send_email" and times out faces exactly cases a/b/c — did the email send? Production agent frameworks wrap tools with today's trio (and lesson 0027's sagas for multi-step flows). If you build agent infra someday, this lesson is load-bearing wall #1.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/">AWS Builders' Library — Timeouts, retries, and backoff with jitter</a> (20 min; Amazon's hard-won operational doctrine, straight from the people who learned it expensively).</p>
+
+  <div class="lesson-footer">
+    <p><a href="0021-drill-photo-sharing-data-layer.html">◀ 0021 Drill: Photo-Sharing</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0023-queues-and-async-work.html">0023 Queues &amp; Async Work ▶</a></p>
+    <p>Next: stop making callers wait at all — hand slow work to a queue. Questions about the a/b/c ambiguity? Ask your teacher; it deserves a conversation.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Your service", sub: "timeout: 2s" },
+    { id: "net", label: "Network", sub: "the unreliable part" },
+    { id: "pay", label: "Payments", sub: "did it charge?" },
+  ],
+  steps: [
+    { from: "client", to: "net", packet: "charge $50 [key=abc]",
+      caption: "The call goes out — carrying an idempotency key minted ONCE for this operation, before any attempt." },
+    { from: "net", to: "pay", packet: "arrives, work runs",
+      caption: "The payment succeeds server-side: card charged, result stored under key abc. Then the reply is sent…" },
+    { at: "net",
+      caption: "…and dies in the network. Case (c): work done, confirmation lost. Your service sees only silence — indistinguishable from the request never arriving at all." },
+    { at: "client",
+      caption: "T+2s: timeout fires. Without it you'd hang here forever while YOUR callers time out on you — failure climbing the stack. The deadline converts unknown into decision." },
+    { from: "client", to: "pay", packet: "retry #1 (after 1s+jitter) [key=abc]",
+      caption: "Retry, same key, after backoff-with-jitter (immediate retries would pile onto a struggling server — a stampede you'd be causing). The moment of danger: is this a second charge?" },
+    { from: "pay", to: "client", packet: "replay: same charge_id",
+      caption: "The server recognizes key abc — already processed — and replays the STORED result without touching the card. One operation, one charge, two deliveries. The trio, closed." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "A dependency stops responding and you have no timeout. The systemic result:",
+    options: [
+      "your own callers start hanging too",
+      "requests queue politely until recovery",
+      "the network reroutes around it",
+      "nothing, threads are essentially free",
+    ],
+    answer: 0,
+    explain: "Your threads block, pile up, and exhaust; now YOU are unresponsive, and the failure climbs one level per missing timeout. Deadlines are firebreaks." },
+  { prompt: "Why jitter on top of exponential backoff?",
+    options: [
+      "desynchronize retries from many clients",
+      "make retry timing harder to exploit",
+      "spread load between the replicas",
+      "shorten the average waiting time",
+    ],
+    answer: 0,
+    explain: "A failure synchronizes every client's retry clock: without randomness they all return at t=1s, 2s, 4s in unified waves — repeatedly re-breaking the recovering server." },
+  { prompt: "The idempotency key must be minted…",
+    options: [
+      "once per operation, reused across retries",
+      "once per attempt, fresh for retries",
+      "by the server, returned to clients",
+      "from the request's arrival timestamp",
+    ],
+    answer: 0,
+    explain: "The key IDENTIFIES the operation. Fresh-per-attempt keys make every retry look like a new operation — duplicates return. (Server-minted can't cover the first lost reply.)" },
+  { prompt: "In the hands-on, the server stores the result under the key BEFORE its post-work chaos. Why does that ordering matter?",
+    options: [
+      "replay works even when replies die",
+      "storage is faster before the failure",
+      "FastAPI requires writes before raises",
+      "clients read the dict directly",
+    ],
+    answer: 0,
+    explain: "Record-then-reply means a lost reply still leaves the completed work findable by key. (Record and work should really be one transaction — lesson 0014's bracket, and 0027 goes further.)" },
+  { prompt: "Spaced review — Lesson 0018: while the payment service is partitioned away, your checkout refuses new orders rather than risk double-charging. You chose…",
+    options: [
+      "consistency over availability, per CAP",
+      "availability over consistency, per CAP",
+      "latency over consistency, per PACELC",
+      "durability over atomicity, per ACID",
+    ],
+    answer: 0,
+    explain: "Refusing service to stay correct during a partition is the CP posture — the right call where money moves, stated in exactly the vocabulary interviews reward." },
+]);
+</script>
+</body>
+</html>

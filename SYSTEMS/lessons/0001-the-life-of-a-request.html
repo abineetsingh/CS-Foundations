@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0001 — The Life of a Request</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0001 · ~25 minutes · Systems Design</span>
+  <h1>The Life of a Request</h1>
+  <p class="lede">One skill, learned today: trace a single request from a client to a server and back, naming every stop on the way.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, first</span>
+    <p>Every system design interview answer — URL shortener, chat app, news feed — is drawn on top of one picture: <em>a client sends a request, a server answers it</em>. Every production backend you'll ever build, including agentic systems calling LLM APIs, is an elaboration of that same picture. Today you learn the picture itself, precisely.</p>
+  </div>
+
+  <h2>Two roles, not two machines</h2>
+  <p>The <a href="../reference/glossary.html#client">client</a> is whoever <em>asks</em>: a browser, a phone app, or a Python script.
+  The <a href="../reference/glossary.html#server">server</a> is a <strong>program</strong> that sits waiting, listening for requests, and answers them.</p>
+  <p>This is the single most common beginner misconception, so let's kill it now: a server is <em>not</em> a special computer. It's software — often just a Python program — that <em>listens</em> on a network. The machine it runs on can be a laptop, a rack in a datacenter, or a rented cloud VM. One machine can run many server programs at once; they stay out of each other's way using <a href="../reference/glossary.html#port">ports</a> — numbered doors, one per program. Web traffic conventionally knocks on port 443 (HTTPS) or 80 (HTTP) <a href="https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started/Web_standards/How_the_web_works">[MDN: How the web works]</a>.</p>
+  <p>To send anything, the client needs the machine's <a href="../reference/glossary.html#ip-address">IP address</a> — a numeric address like <code>203.0.113.7</code>. But you typed <code>api.example.com</code>. Turning names into IP addresses is the job of <a href="../reference/glossary.html#dns">DNS</a>, the internet's phone book <a href="https://developer.mozilla.org/en-US/docs/Web/Performance/Guides/How_browsers_work">[MDN: How browsers work]</a>. That's why DNS is always the first stop.</p>
+
+  <h2>What travels on the wire: HTTP</h2>
+  <p>Client and server agree on a message format called <a href="../reference/glossary.html#http">HTTP</a>. A <a href="../reference/glossary.html#request">request</a> says <em>what to do</em> and <em>to what</em>; a <a href="../reference/glossary.html#response">response</a> says <em>how it went</em> and carries the result <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Overview">[MDN: HTTP overview]</a>:</p>
+  <pre><code>Request:               Response:
+GET /users/42          HTTP/1.1 200 OK
+Host: api.example.com  Content-Type: application/json
+                       {"id": 42, "name": "Ada"}</code></pre>
+  <table>
+    <tr><th>Piece</th><th>What it means</th></tr>
+    <tr><td><code>GET</code></td><td>The method: read something. (<code>POST</code> = create, <code>PUT</code> = update, <code>DELETE</code> = delete.)</td></tr>
+    <tr><td><code>/users/42</code></td><td>The path — which <a href="../reference/glossary.html#endpoint">endpoint</a>, which thing.</td></tr>
+    <tr><td><code>200 OK</code></td><td>The <a href="../reference/glossary.html#status-code">status code</a>. <code>2xx</code> = success, <code>4xx</code> = your request was wrong (404 = not found), <code>5xx</code> = the server broke <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status">[MDN: status codes]</a>.</td></tr>
+    <tr><td><code>{"id": 42, …}</code></td><td>The body — the actual data, almost always JSON for APIs.</td></tr>
+  </table>
+
+  <h2>Watch one request live its life</h2>
+  <p>Here is <code>GET https://api.example.com/users/42</code>, end to end. The fourth box is the <a href="../reference/glossary.html#database">database</a> — the program whose only job is keeping data safe and queryable, so the app servers themselves can stay disposable. Step through slowly; the goal is to be able to redraw this from memory.</p>
+  <div id="flow"></div>
+
+  <div class="note">
+    <span class="callout-label">Speed of things</span>
+    <p>Each arrow above costs time — <a href="../reference/glossary.html#latency">latency</a>. Rough feel: reading memory is ~100 nanoseconds, an SSD read ~100 microseconds, a round trip inside one datacenter ~half a millisecond, and a cross-country round trip ~40–70 milliseconds. Network hops dominate everything else — which is why so much of systems design is about avoiding them. (Full table in a later lesson.)</p>
+  </div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>When your Python script calls the Anthropic API, this exact diagram runs: your script is the client, <code>api.anthropic.com</code> resolves via DNS, an app server receives <code>POST /v1/messages</code>, GPU-backed model servers play the role the database plays here, and a <code>200</code> with JSON comes back. Agent frameworks are this loop, repeated.</p>
+  </div>
+
+  <h2>Hands-on: run a real server (5 minutes)</h2>
+  <p>Python ships with a tiny web server. In one terminal, start it:</p>
+  <pre><code>cd ~ &amp;&amp; python3 -m http.server 8000</code></pre>
+  <p>That program is now a server: listening on <a href="../reference/glossary.html#localhost">localhost</a> (this machine, no DNS needed), port 8000. In a <em>second</em> terminal, be the client — and ask curl to show the raw conversation with <code>-v</code>:</p>
+  <pre><code>curl -v http://localhost:8000/</code></pre>
+  <p>Read the output: lines starting with <code>&gt;</code> are the request your client sent (find the method and path); lines with <code>&lt;</code> are the response (find <code>200 OK</code> and <code>Content-Type</code>). Now request something that doesn't exist:</p>
+  <pre><code>curl -v http://localhost:8000/nope</code></pre>
+  <p>You get a <code>404</code> — and notice the first terminal logged both requests as they arrived. You have now run a server, sent raw HTTP, and read both halves of the conversation. Stop the server with <code>Ctrl-C</code>.</p>
+
+  <h2>Check yourself</h2>
+  <p>From memory — no scrolling up. Wrong answers teach more than right ones.</p>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source for this lesson: <a href="https://developer.mozilla.org/en-US/docs/Learn_web_development/Getting_started/Web_standards/How_the_web_works">MDN — How the web works</a> (10 min, precise and beginner-safe). For the course-long companion, star <a href="https://github.com/donnemartin/system-design-primer">the System Design Primer</a> — we'll return to it constantly.</p>
+
+  <div class="lesson-footer">
+    <p><strong>Next lesson:</strong> what happens when a <em>million</em> clients show up at once — and why the answer starts with "add a box to the diagram." &middot; <a href="../reference/glossary.html">Glossary</a></p>
+    <p>Anything unclear — ports vs IPs, why DNS exists, what curl printed? Ask your teacher (the agent) right in the session; that's what it's for.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Browser", sub: "the client" },
+    { id: "dns",    label: "DNS",     sub: "the phone book" },
+    { id: "server", label: "App server", sub: "203.0.113.7:443" },
+    { id: "db",     label: "Database",   sub: "the shelf" },
+  ],
+  steps: [
+    { from: "client", to: "dns", packet: "api.example.com?",
+      caption: "The browser only has a name, and names can't be dialed. First stop: ask DNS for the IP address of api.example.com." },
+    { from: "dns", to: "client", packet: "203.0.113.7",
+      caption: "DNS answers with an IP address. Now the client knows exactly which machine to talk to." },
+    { from: "client", to: "server", packet: "GET /users/42",
+      caption: "The client connects to 203.0.113.7 on port 443 and sends the HTTP request: method GET, path /users/42." },
+    { at: "server",
+      caption: "A program listening on that port — the backend — receives the request and runs the handler code for /users/42." },
+    { from: "server", to: "db", packet: "id = 42?",
+      caption: "The handler doesn't hold user data itself; it asks the database — the program whose whole job is keeping data safe and queryable." },
+    { from: "db", to: "server", packet: "{id:42, name:…}",
+      caption: "The database returns the row. The handler shapes it into JSON." },
+    { from: "server", to: "client", packet: "200 OK + JSON",
+      caption: "The response travels back: status 200, headers, JSON body. The whole round trip is often under 100 milliseconds." },
+    { at: "client",
+      caption: "The client parses the JSON and moves on. Every backend you will ever design is a variation of these eight steps." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "In systems terms, what is a “server”, most precisely?",
+    options: [
+      "a powerful computer inside a datacenter",
+      "a program listening on a port",
+      "a database that stores application state",
+      "a browser that renders web pages",
+    ],
+    answer: 1,
+    explain: "A server is software. The hardware is incidental — one machine can run many servers, each on its own port." },
+  { prompt: "Your browser wants https://api.example.com/users/42. What must happen first?",
+    options: [
+      "DNS turns name into IP",
+      "the database runs a query",
+      "the server sends a response",
+      "the handler code starts running",
+    ],
+    answer: 0,
+    explain: "Nothing can be sent anywhere until the name becomes an IP address. DNS is always the first stop." },
+  { prompt: "A response comes back with status 404. What does that mean?",
+    options: [
+      "the requested path doesn't exist",
+      "the server crashed mid request",
+      "the request succeeded as expected",
+      "the client must authenticate first",
+    ],
+    answer: 0,
+    explain: "4xx codes mean the client's request was the problem; 404 specifically = not found. Crashes are 500, success is 200, authentication is 401." },
+  { prompt: "In your curl -v output, what were the lines starting with “>”?",
+    options: [
+      "bytes the client sent the server",
+      "bytes the server sent the client",
+      "log lines from the operating system",
+      "errors curl printed about the connection",
+    ],
+    answer: 0,
+    explain: "curl -v marks outgoing (request) lines with > and incoming (response) lines with <. You read both halves of one HTTP conversation." },
+  { prompt: "Your Python script calls the Anthropic API. In that exchange, your script…",
+    options: [
+      "is playing the client role",
+      "is playing the server role",
+      "is playing the database role",
+      "is playing the resolver role",
+    ],
+    answer: 0,
+    explain: "It initiates the request, so it's the client — even though it's 'backend code'. Client and server are roles in an exchange, not kinds of machines." },
+]);
+</script>
+</body>
+</html>

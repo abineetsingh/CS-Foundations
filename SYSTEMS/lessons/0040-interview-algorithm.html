@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0040 — The 45-Minute Interview Algorithm</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0040 · ~30 minutes · Systems Design · Phase 5</span>
+  <h1>The 45-Minute Interview Algorithm</h1>
+  <p class="lede">One skill, learned today: run a system design interview on rails — five stages, timed, with you driving — so knowledge you already have arrives in the order interviewers score.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>This is the near-term mission checkpoint itself. You now know more than enough <em>content</em>; interviews are lost on <em>process</em> — rabbit-holing, waiting to be led, never stating tradeoffs. The algorithm below is the standard structure hiring managers themselves teach <a href="https://www.hellointerview.com/learn/system-design/in-a-hurry/delivery">[Hello Interview: delivery framework]</a>. Drills 0041–0043 run it against real prompts.</p>
+  </div>
+
+  <h2>The five stages (with the clock)</h2>
+  <table>
+    <tr><th>Stage</th><th>Time</th><th>What you produce</th><th>Course tools</th></tr>
+    <tr><td><strong>1. Requirements</strong></td><td>~5 min</td><td>functional list (3–5 features, aggressively descoped: "I'll focus on X and Y; skipping login — fair?") + non-functional list (scale, latency targets, consistency needs, read:write ratio)</td><td>0011's functional/non-functional split</td></tr>
+    <tr><td><strong>2. Envelope</strong></td><td>~5 min</td><td>QPS (read AND write), storage, the ratio — and a <em>conclusion</em>: "reads are the problem, so: cache-heavy"</td><td>0006, verdict-first</td></tr>
+    <tr><td><strong>3. API + data model</strong></td><td>~5 min</td><td>core endpoints (REST, paginated) + main tables/stores with keys</td><td>0002, 0012, 0017</td></tr>
+    <tr><td><strong>4. High-level design</strong></td><td>~10 min</td><td>the boxes, drawn while narrating the read path and write path end to end — a working v1, no cleverness yet</td><td>0011's diagram + queues (0023) where async</td></tr>
+    <tr><td><strong>5. Deep dives</strong></td><td>~15 min</td><td>attack the 2–3 hardest problems (the interviewer's real interest): the hot key, the fan-out, the consistency call, the failure mode — with tradeoffs stated per option</td><td>phases 2–4, all of them</td></tr>
+  </table>
+  <div id="flow"></div>
+
+  <h2>The meta-skills that score</h2>
+  <ul>
+    <li><strong>Drive.</strong> Announce the structure ("let me get requirements, size it, then design — deep dives at the end"), narrate transitions, and propose the deep dives yourself. Interviewers steer when needed; silence while you scribble is the anti-pattern.</li>
+    <li><strong>Tradeoffs out loud, always.</strong> Never "I'd use Cassandra" — always "wide-column here because the access pattern is append-heavy time-series (0017); Postgres would need sharding by month and loses us nothing… actually let me note both and pick per the write QPS." The <em>form</em> "X because Y; the alternative costs Z" is what gets transcribed into feedback as 'strong signal'.</li>
+    <li><strong>Declare your budgets.</strong> Staleness (0009/0018), latency (0005), error budget (0035) — numbers you commit to, unprompted. It's the single strongest experience-signal available in 45 minutes.</li>
+    <li><strong>Meet pushback with curiosity.</strong> "What if a celebrity posts?" is a gift — the interviewer is pointing at the intended deep dive. Say "great — that breaks my per-user cache assumption; here are two mitigations…" (0016). Defensiveness fails candidates whose designs were fine.</li>
+    <li><strong>Know your seniority dial.</strong> Junior loops want a clean stage 4. Senior loops live in stage 5 — go there faster, flag the hard parts yourself ("the interesting problem here is the fan-out; want me to start there?").</li>
+  </ul>
+  <p>Print the <a href="../reference/interview-runbook.html">interview runbook</a> — the one-page version of this lesson — and keep it beside you during every drill from here on.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>AI-lab loops run this same algorithm with two twists: prompts skew toward their world ("design an LLM inference API," "design evals infrastructure" — lessons 0044–0045 arm you), and deep dives skew toward scale + cost ("GPU utilization is 40% — what do you change?"). The structure you drill now is the structure you'll use there verbatim.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.hellointerview.com/learn/system-design/in-a-hurry/delivery">Hello Interview — the Delivery Framework</a> (20 min). Then watch one of their mock-interview videos end to end, checklist in hand, scoring the candidate yourself against today's stages.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0039-incident-thinking.html">◀ 0039 Incident Thinking</a> · <a href="../reference/interview-runbook.html">Interview runbook</a> · <a href="0041-drill-url-shortener.html">0041 Drill: URL Shortener ▶</a></p>
+    <p>Next three lessons: the algorithm, applied — full drills. Your teacher can also run live mock interviews with you anytime: just ask, and be pushed back at.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "req", label: "Requirements", sub: "~5 min" },
+    { id: "env", label: "Envelope", sub: "~5 min" },
+    { id: "api", label: "API + data", sub: "~5 min" },
+    { id: "hld", label: "High-level", sub: "~10 min", row: 1 },
+    { id: "deep", label: "Deep dives", sub: "~15 min ★", row: 1 },
+  ],
+  links: [["req","env"], ["env","api"], ["api","hld"], ["hld","deep"]],
+  steps: [
+    { at: "req",
+      caption: "Minute 0: 'Design Twitter.' You: 'Let me pin requirements first. Core: post, follow, timeline — deprioritizing DMs and search unless you want them?' Descoping OUT LOUD is stage 1's real skill; vagueness here poisons everything after." },
+    { from: "req", to: "env", packet: "10M DAU, 100:1",
+      caption: "Stage 2 ends with a VERDICT, not numbers: '10k read QPS vs 100 writes — read-heavy 100:1, so cache-first design, writes are easy.' Numbers that don't change the design were wasted breath (0006)." },
+    { from: "env", to: "api", packet: "5 endpoints, 3 tables",
+      caption: "Stage 3, briskly: POST /tweets, GET /timeline?cursor=… (paginated — 0002); users/tweets/follows with keys and the (user_id, created_at) index (0012–0013). Don't gold-plate; the clock belongs to stage 5." },
+    { from: "api", to: "hld", packet: "draw + narrate",
+      caption: "Stage 4: the 0011 diagram — CDN, LB, stateless fleet, cache, DB+replicas, a queue for fan-out — while NARRATING both paths: 'a read goes here-here-here; a write lands here, then async…'. A silent diagram scores nothing." },
+    { from: "hld", to: "deep", packet: "'the hard part is…'",
+      caption: "Stage 5 — where hiring decisions happen. YOU propose: 'The interesting problems are timeline fan-out and the celebrity hot key — start with fan-out?' Then tradeoffs in full sentences: push vs pull, cache staleness budgets, what breaks at 10×." },
+    { at: ["req", "deep"],
+      caption: "The meta-loop: announce structure → narrate transitions → state tradeoffs as 'X because Y, alternative costs Z' → welcome pushback as direction. Process converts your 39 lessons of content into a hire decision. Drill it thrice, next." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "The interviewer's hiring signal concentrates in which stage?",
+    options: [
+      "deep dives on the hardest parts",
+      "the high-level diagram's completeness",
+      "the envelope's arithmetic precision",
+      "the API's RESTful correctness",
+    ],
+    answer: 0,
+    explain: "Stages 1–4 are qualification; stage 5 is differentiation — tradeoff reasoning under pressure on the 2–3 genuinely hard problems. Budget your clock accordingly (and get there faster in senior loops)." },
+  { prompt: "The envelope stage should END with…",
+    options: [
+      "a design-shaping conclusion, stated plainly",
+      "exact figures for five-year storage",
+      "the interviewer confirming your arithmetic",
+      "a list of every quantity computable",
+    ],
+    answer: 0,
+    explain: "'Reads dominate 100:1 → cache-first; storage is modest → defer sharding.' Numbers exist to force conclusions; a conclusion-free envelope was recitation, not engineering." },
+  { prompt: "'What happens when a celebrity with 50M followers posts?' You should hear…",
+    options: [
+      "an invitation to the intended deep-dive",
+      "a signal your design has failed",
+      "a request to restart the diagram",
+      "a test of your calm under stress",
+    ],
+    answer: 0,
+    explain: "Pushback is steering: the interviewer is showing you where the points are. 'Great — that breaks per-user fan-out; two mitigations…' scores; defending the original design does not." },
+  { prompt: "The strongest single experience-signal you can emit unprompted:",
+    options: [
+      "declaring staleness and latency budgets",
+      "naming many vendor product options",
+      "drawing the diagram without pausing",
+      "finishing every stage ahead of schedule",
+    ],
+    answer: 0,
+    explain: "'Timelines may lag 60s; p99 under 200ms; search trails by seconds' — committed budgets show you've operated systems, not just read about them. It's the habit this course drilled from lesson 0009 onward." },
+  { prompt: "Spaced review — Lesson 0039: asked 'how would you know this design is broken in production?', the interview-grade answer starts with…",
+    options: [
+      "SLO burn-rate alerts on user symptoms",
+      "engineers watching dashboards during launches",
+      "customer support tickets trending upward",
+      "daily reviews of the error logs",
+    ],
+    answer: 0,
+    explain: "Symptom-based SLO alerting (0035/0039) — pages fire when users hurt, not when internals blip. Mentioning canaries-on-deploy (0034) alongside completes the answer." },
+]);
+</script>
+</body>
+</html>

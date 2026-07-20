@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0017 — The NoSQL Landscape</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0017 · ~25 minutes · Systems Design · Phase 2</span>
+  <h1>The NoSQL Landscape</h1>
+  <p class="lede">One skill, learned today: name the four NoSQL families, what each trades away, and answer "SQL or NoSQL?" like an engineer instead of a fan.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Why did you pick this database?" is guaranteed interview material, and the wrong-store-for-the-job is a top cause of expensive rewrites in industry. The strong answer is never brand loyalty — it's matching <em>access patterns</em> to <em>store shape</em>, using everything phase 2 has taught you.</p>
+  </div>
+
+  <h2>Why NoSQL exists at all</h2>
+  <p>Relational databases were built machine-first: joins, constraints, and serializable transactions are easy when everything lives together, hard across shards. The 2000s web forced a choice, and NoSQL stores made it openly: <strong>give up joins and cross-row transactions; buy effortless horizontal scale</strong> — sharding and replication (0015/0016) built in as the default, not an operation you perform <a href="https://dataintensive.net/">[DDIA ch. 2]</a>. Everything else about them is downstream of that trade.</p>
+
+  <h2>The four families</h2>
+  <table>
+    <tr><th>Family</th><th>Mental model</th><th>Exemplars</th><th>Reach for it when</th></tr>
+    <tr><td><strong>Key-value</strong></td><td>a giant hash map (DSA 0005, industrialized)</td><td>Redis, DynamoDB</td><td>get/put by key at massive scale: sessions, carts, caches, counters</td></tr>
+    <tr><td><strong>Document</strong></td><td>KV where the value is queryable JSON</td><td>MongoDB, Firestore</td><td>self-contained records read whole: profiles, catalog entries, CMS content</td></tr>
+    <tr><td><strong>Wide-column</strong></td><td>2-level map: (partition key → sorted rows)</td><td>Cassandra, HBase, Bigtable</td><td>write-heavy series data: messages, events, sensor feeds — "one user's messages, time-ordered" is one partition</td></tr>
+    <tr><td><strong>Graph</strong></td><td>nodes + edges as first-class citizens</td><td>Neo4j, Neptune</td><td>multi-hop relationship queries: "friends-of-friends who like X" (3+ self-joins in SQL)</td></tr>
+  </table>
+  <p>The recurring theme — <strong>NoSQL stores query by shape, not by question</strong>: you design the data around the exact access path (the wide-column partition IS the query; the document IS the page). Ad-hoc questions you didn't design for range from painful to impossible. SQL's superpower was always that it answers questions you hadn't thought of yet.</p>
+
+  <h2>The decision framework</h2>
+  <p>Walk it in order — out loud, in interviews:</p>
+  <div id="flow"></div>
+  <div class="note">
+    <span class="callout-label">The honest default</span>
+    <p>Start with Postgres. It handles JSON documents, full-text search, and — with the phase-2 toolkit of caching, replicas, and sharding — carries most businesses to enormous scale. Choose NoSQL for a <em>named reason</em> (a specific access pattern, write volume, or scaling requirement), and say the reason. "We used Mongo because it's webscale" is the answer interviewers are screening <em>against</em>.</p>
+  </div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>A production agent stack quietly uses the whole landscape: Redis for session/state (KV), a document store for conversation transcripts, wide-column-ish event logs for telemetry, a graph for entity memory, Postgres for billing — plus vector indexes (0045) as the newest family in the zoo. "Pick the store per access pattern" is literally the agent-infra job description.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: DDIA 2nd ed., ch. 2–3 (data models; the document-vs-relational discussion is the fairest ever written). Free skim: <a href="https://github.com/donnemartin/system-design-primer#nosql">Primer — NoSQL</a> for the four families in interview shorthand.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0016-partitioning-and-sharding.html">◀ 0016 Partitioning &amp; Sharding</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0018-consistency-and-cap.html">0018 Consistency &amp; CAP ▶</a></p>
+    <p>One phrase kept appearing with an IOU attached: "eventually consistent." Next lesson pays that debt properly. Ask your teacher for store-choice drills — "pick the database for X" makes great practice.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "q1", label: "Q1: Relations?", sub: "joins, constraints, ad-hoc" },
+    { id: "q2", label: "Q2: Pattern?", sub: "how is it accessed" },
+    { id: "sql", label: "Postgres", sub: "the default", row: 1 },
+    { id: "kv", label: "KV / Document", sub: "by key, whole records", row: 1 },
+    { id: "wide", label: "Wide-column", sub: "heavy ordered writes", row: 1 },
+    { id: "graph", label: "Graph", sub: "multi-hop traversals", row: 1 },
+  ],
+  links: [["q1","q2"], ["q1","sql"], ["q2","kv"], ["q2","wide"], ["q2","graph"]],
+  steps: [
+    { at: "q1",
+      caption: "Question 1: does the data lean on relationships — joins across entities, constraints, transactions spanning rows, ad-hoc queries? Money, inventory, anything 'enterprise': the answer is usually yes." },
+    { from: "q1", to: "sql", packet: "yes → relational",
+      caption: "Yes → relational, and you already know how to scale it: cache (0009) + replicas (0015) + shards (0016). This path serves most systems, most of the time." },
+    { from: "q1", to: "q2", packet: "no → what pattern?",
+      caption: "No real relations? Then let the ACCESS PATTERN pick the store. Question 2 has three classic shapes:" },
+    { from: "q2", to: "kv", packet: "fetch by key",
+      caption: "'Get record 42, whole' → key-value or document. Sessions, profiles, carts. O(1) by key, effortless sharding — because the key IS the shard key." },
+    { from: "q2", to: "wide", packet: "append + range-read",
+      caption: "'Write torrents, read one entity's slice in order' → wide-column. Chat messages by conversation, events by device. The partition key groups; the sort key orders. This shape returns in lesson 0042." },
+    { from: "q2", to: "graph", packet: "hop hop hop",
+      caption: "'Traverse relationships to depth 3+' → graph store. Social recommendations, fraud rings, knowledge graphs. In SQL this is recursive self-join pain; in a graph store it's the native operation." },
+    { at: ["sql", "kv", "wide", "graph"],
+      caption: "Real systems mix them — Postgres for orders AND Redis for sessions AND Cassandra for events. 'Polyglot persistence': one store per access pattern, each chosen with a reason you can say out loud." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "The founding trade every NoSQL family made:",
+    options: [
+      "joins traded for horizontal scale",
+      "durability traded for raw speed",
+      "SQL syntax traded for JSON",
+      "consistency traded for cheaper hardware",
+    ],
+    answer: 0,
+    explain: "Drop cross-row machinery (joins, multi-row transactions) that fights sharding; gain built-in distribution. Syntax and formats are surface; the trade is structural." },
+  { prompt: "Chat app: billions of messages, always read as 'this conversation, time-ordered'. Best family?",
+    options: [
+      "wide-column, partition per conversation",
+      "graph, messages linked as edges",
+      "document, one JSON per message",
+      "relational, messages joined to threads",
+    ],
+    answer: 0,
+    explain: "The access pattern IS wide-column's shape: partition key = conversation_id groups, sort key = timestamp orders. Write-heavy, range-read — Cassandra's home turf." },
+  { prompt: "'Which customers bought both X and Y last quarter, by region?' — a question nobody pre-planned. Strongest store?",
+    options: [
+      "relational, ad-hoc queries are native",
+      "key-value, scan all the keys",
+      "document, filter every stored record",
+      "wide-column, add another partition scheme",
+    ],
+    answer: 0,
+    explain: "SQL answers questions you didn't design for — joins + WHERE on anything. NoSQL stores answer the questions their layout anticipated; new questions mean new layouts." },
+  { prompt: "Spaced review — Lesson 0016: DynamoDB requires a partition key on every table because…",
+    options: [
+      "the key routes rows to shards",
+      "keys encrypt the stored values",
+      "queries are billed per key",
+      "indexes only build over keys",
+    ],
+    answer: 0,
+    explain: "Built-in sharding needs to know where every row lives — hash(partition key) → node, consistent-hashing ring underneath. The 'design your key' pressure IS lesson 0016 productized." },
+  { prompt: "Spaced review — Lesson 0012: storing the author's name inside every tweet document (instead of joining) will hurt exactly when…",
+    options: [
+      "the author changes their name",
+      "the tweet gets heavily cached",
+      "documents exceed the size limits",
+      "reads outnumber writes heavily",
+    ],
+    answer: 0,
+    explain: "Denormalization's bill arrives at update time: millions of embedded copies to fix, or drift forever. Document stores denormalize by design — accept the bill knowingly." },
+]);
+</script>
+</body>
+</html>

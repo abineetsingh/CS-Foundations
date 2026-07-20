@@ -1,0 +1,79 @@
+/* Styles for sysviz.js flow animations. Pairs with course.css variables. */
+
+.sysviz {
+  margin: 2rem 0;
+  border: 1px solid var(--rule, #ddddd0);
+  border-radius: 8px;
+  padding: 1rem 1.2rem 1.1rem;
+  background: #fdfdf4;
+}
+
+.sysviz svg { width: 100%; height: auto; display: block; }
+
+.sysviz-track {
+  stroke: #ccccc0;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.sysviz-box {
+  fill: #ffffff;
+  stroke: #999990;
+  stroke-width: 1.5;
+}
+.sysviz-box-active {
+  stroke: var(--accent, #a00000);
+  stroke-width: 2.5;
+}
+
+.sysviz-label {
+  font-family: Palatino, "Palatino Linotype", Georgia, serif;
+  font-size: 15px;
+  text-anchor: middle;
+  fill: var(--ink, #111);
+}
+.sysviz-sub {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  text-anchor: middle;
+  fill: var(--muted, #555550);
+}
+
+.sysviz-dot { fill: var(--accent, #a00000); }
+.sysviz-packet-label {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-anchor: middle;
+  fill: var(--accent, #a00000);
+}
+
+.sysviz-controls { margin-top: 0.9rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.sysviz-controls button {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.sysviz-controls button:hover { border-color: var(--ink, #111); }
+.sysviz-counter {
+  font-size: 0.8rem;
+  color: var(--muted, #555550);
+  font-style: italic;
+  margin-left: 0.4rem;
+}
+
+.sysviz-caption {
+  margin-top: 0.8rem;
+  min-height: 3.2em;
+  font-size: 0.98rem;
+  color: var(--ink, #111);
+  border-top: 1px solid var(--rule, #ddddd0);
+  padding-top: 0.7rem;
+}
+
+@media print {
+  .sysviz-controls { display: none; }
+}

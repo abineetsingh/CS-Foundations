@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0030 — Monolith vs Microservices</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 0030 · ~25 minutes · Systems Design · Phase 3</span>
+  <h1>Monolith vs Microservices</h1>
+  <p class="lede">One skill, learned today: argue both sides of the architecture question every enterprise fights about — and know what a service boundary actually costs.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>This is the "enterprise platforms" heart of your mission: how large organizations structure backends. Interviews pose it directly ("would you split this into services?") and indirectly (every box you draw implies an answer). The mature position is unfashionable and correct — and phase 3 gave you the vocabulary to hold it.</p>
+  </div>
+
+  <h2>The two shapes</h2>
+  <p>A <a href="../reference/glossary.html#monolith">monolith</a> is one deployable unit: all features, one codebase, one process (× N stateless copies — a monolith scales horizontally just fine, per 0007!). <a href="../reference/glossary.html#microservices">Microservices</a> split the system into independently deployed services — orders, payments, inventory — each owning <em>its own data</em>, talking over the network <a href="https://martinfowler.com/articles/microservices.html">[Fowler: microservices]</a>:</p>
+  <table>
+    <tr><th></th><th>Monolith</th><th>Microservices</th></tr>
+    <tr><td>A cross-feature call is…</td><td>a function call: nanoseconds, can't fail alone, transactional (0014 covers all of it!)</td><td>a network call: milliseconds, needs 0022's whole trio, no shared transactions (0027's sagas)</td></tr>
+    <tr><td>Deploys</td><td>everyone ships together — coordination tax grows with team count</td><td>each team ships independently — <em>the</em> actual payoff</td></tr>
+    <tr><td>Scaling</td><td>whole thing × N (even if only search is hot)</td><td>hot service × N independently; per-service tech choices (0017's polyglot persistence)</td></tr>
+    <tr><td>Failure</td><td>a bad deploy takes down everything</td><td>isolated-ish — but now <em>partial failure between your own features</em> (0022) exists where it didn't</td></tr>
+    <tr><td>Debugging</td><td>one stack trace</td><td>a distributed murder mystery (tracing — 0035 — becomes mandatory)</td></tr>
+  </table>
+  <p>Read the left column with phase-3 eyes: <strong>microservices import every hard problem from lessons 0022–0027 into the interior of your application.</strong> That's not a reason never to split — it's the price tag, and most of the industry's microservice regret comes from not reading it. The main legitimate driver is organizational: <em>team autonomy</em> (Conway's law — architecture mirrors org structure). The honest doctrine: <strong>monolith first</strong>; split when a specific pain (team contention, divergent scaling, isolation requirements) names the boundary <a href="https://martinfowler.com/bliki/MonolithFirst.html">[Fowler: Monolith First]</a>.</p>
+
+  <h2>Drawing the boundary well</h2>
+  <p>When you do split, two rules carry most of the weight:</p>
+  <ul>
+    <li><strong>Services own their data.</strong> No shared database — otherwise you've built a <em>distributed monolith</em>: network calls' costs, none of the autonomy (schema changes still need everyone's sign-off). Other services get your data through your API or your events (0024), never your tables.</li>
+    <li><strong>Split along business capabilities, not technical layers.</strong> "Payments" is a service; "the database access layer" is not. A good boundary is one where most changes stay inside it — cohesion over fashion.</li>
+  </ul>
+  <p>The front door of a service fleet is the <a href="../reference/glossary.html#api-gateway">API gateway</a> — one public address (clients shouldn't know your org chart) doing auth, rate limiting (0028), and routing; internally, services find each other via service discovery (0033) and increasingly talk through events rather than direct calls (0024, 0027) to keep coupling loose:</p>
+  <div id="flow"></div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>A production LLM platform is a service fleet you can now read: gateway (auth, token-based rate limits — 0028) → routing service → inference fleet, with billing, safety, and logging as event consumers (0024) so the request path stays fast. And multi-agent systems re-import the same question: one big agent or specialized agents coordinating over messages? The tradeoffs transfer verbatim — coordination cost vs specialization, again.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://martinfowler.com/articles/microservices.html">Fowler — Microservices</a> (the field's defining essay) paired with his corrective <a href="https://martinfowler.com/bliki/MonolithFirst.html">Monolith First</a> (10 min). Read them in that order; the pairing IS the lesson.</p>
+
+  <div class="lesson-footer">
+    <p><a href="0029-realtime-delivery.html">◀ 0029 Realtime Delivery</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="0031-drill-crawler-and-notifications.html">0031 Drill: Crawler &amp; Notifications ▶</a></p>
+    <p>Next: the phase 3 capstone drill — two classics that exercise everything since 0022. Questions? Ask your teacher.</p>
+  </div>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Client" },
+    { id: "gw", label: "API gateway", sub: "auth · limits · routing" },
+    { id: "orders", label: "Orders svc", sub: "own DB", row: 1 },
+    { id: "pay", label: "Payments svc", sub: "own DB", row: 1 },
+    { id: "bus", label: "Event log", sub: "order_placed…", row: 1 },
+  ],
+  links: [["client","gw"], ["gw","orders"], ["gw","pay"], ["orders","bus"], ["pay","bus"]],
+  steps: [
+    { from: "client", to: "gw", packet: "POST /orders",
+      caption: "One public address. The client neither knows nor cares that 'the API' is forty services — the gateway hides the org chart, does auth once, applies rate limits (0028) once." },
+    { from: "gw", to: "orders", packet: "route → orders",
+      caption: "Routed to the Orders service: its own codebase, deploy pipeline, database, team. It commits the order locally — and writes an order_placed event via the outbox (0027)." },
+    { from: "orders", to: "bus", packet: "order_placed",
+      caption: "The fact goes to the event log (0024). Note what did NOT happen: no synchronous call chain orders→payments→inventory→shipping, where any link's failure (0022) fails the user's request." },
+    { from: "bus", to: "pay", packet: "consume, charge",
+      caption: "Payments consumes the event on its own schedule, charges idempotently (0025), emits payment_completed. Loose coupling: Orders doesn't know Payments exists. The saga (0027) coordinates if steps must undo." },
+    { at: ["orders", "pay"],
+      caption: "Each service scales, deploys, and fails independently — Payments can ship five times today while Orders ships none. THIS (team autonomy) is what you're buying." },
+    { at: ["orders", "pay", "bus"],
+      caption: "And the receipt: every arrow between boxes is a network edge needing timeouts, retries, idempotency, sagas, tracing. Forty services = forty×(hard problems from 0022–0027) inside your own app. Split when a named pain justifies that bill — not before." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "The strongest legitimate driver for splitting into microservices:",
+    options: [
+      "independent teams shipping without coordination",
+      "network calls being faster than functions",
+      "microservices removing all failure modes",
+      "monoliths being unable to scale",
+    ],
+    answer: 0,
+    explain: "The payoff is organizational: autonomy, independent deploys, per-service scaling. (Function calls are ~10⁶× faster than network calls, and monoliths scale fine horizontally — those myths fail interviews.)" },
+  { prompt: "Two 'microservices' sharing one database are really…",
+    options: [
+      "a distributed monolith, worst of both",
+      "a sensible transitional architecture stage",
+      "event-driven services with shared state",
+      "a monolith with extra availability",
+    ],
+    answer: 0,
+    explain: "Network-call costs AND schema coupling: neither can change its data model without the other, so no autonomy was gained. Services own their data — the non-negotiable rule." },
+  { prompt: "Converting a function call into a service call newly requires…",
+    options: [
+      "timeouts, retries, idempotency, saga thinking",
+      "no changes if the interface matches",
+      "only serialization of the arguments",
+      "a faster network between the machines",
+    ],
+    answer: 0,
+    explain: "The call can now partially fail (0022), duplicate (0025), and can't share transactions (0027). That imported toolkit is the true unit price of every boundary you draw." },
+  { prompt: "'Monolith first' argues young systems should stay whole because…",
+    options: [
+      "good boundaries emerge from real experience",
+      "small teams can't operate two services",
+      "monoliths are permanently simpler at scale",
+      "microservices need special cloud hardware",
+    ],
+    answer: 0,
+    explain: "You learn where the natural seams are by living in the system; guessing boundaries up front usually cuts wrong, and service boundaries are expensive to move. Split along proven pain." },
+  { prompt: "Spaced review — Lesson 0027: Orders commits its row AND its order_placed event atomically via…",
+    options: [
+      "the outbox, event-as-row then relayed",
+      "two-phase commit across both services",
+      "publishing before the database write",
+      "a shared transaction on the bus",
+    ],
+    answer: 0,
+    explain: "Outbox: one local transaction holds both writes; a relay publishes at-least-once; consumers dedupe. The dual-write gap closed with tools you already own." },
+]);
+</script>
+</body>
+</html>

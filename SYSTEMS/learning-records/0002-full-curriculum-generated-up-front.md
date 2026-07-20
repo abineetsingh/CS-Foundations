@@ -1,0 +1,5 @@
+# Full 46-lesson curriculum generated up front
+
+The user asked for all lessons generated in one pass (2026-07-19), same as they did on the DSA track. All 46 lessons (`0001`–`0046`) plus four reference docs now exist and are verified. This accepts a known tradeoff: lessons couldn't be adapted to the user's actual quiz performance as they went, because there was no performance data yet.
+
+**Implications for future sessions:** The zone of proximal development is now driven by *revision*, not authoring. As the user works through lessons and reports quiz results (or misses on the hands-on/drills), revise the specific lessons that didn't land rather than writing new ones — the sequence is fixed but individual lesson depth/pacing is not. Watch especially for the conceptually heavy lessons (0018 consistency/CAP, 0026 consensus, 0027 sagas) and the drills (0011, 0021, 0031, 0041–0043), where a beginner is most likely to need a second pass or a live mock with the teacher. The user has not yet demonstrated any systems knowledge — [[0001-mission-and-beginner-baseline]] still sets the floor; the first real signal will come from lesson 0001's quiz.
