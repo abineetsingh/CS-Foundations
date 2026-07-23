@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 42 — The Python Interview Toolkit</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 42 · Phase 5 · ~25 minutes</span>
+  <h1>The Python Interview Toolkit</h1>
+  <p class="lede">Today's skill: the standard-library kit that makes interview Python fast to write and pleasant to read — plus the three gotchas that bite live.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Under time pressure, fluency is speed: knowing <code>Counter</code> exists saves five minutes; knowing the mutable-default gotcha saves a live debugging spiral. This lesson consolidates tools you've already met and fills the gaps. Its companion <a href="../reference/python-toolkit.html">reference sheet</a> is built for the night before an interview.</p>
+  </div>
+
+  <h2>The big four imports (old friends, one place)</h2>
+  <pre><code>from collections import Counter, defaultdict, deque
+import heapq
+import bisect                     # Lesson 14's leftmost(), productionized
+
+Counter("hello")                  # {'l': 2, 'h': 1, …} + .most_common(k)
+defaultdict(list)                 # adjacency lists (28); defaultdict(int) counters
+deque()                           # O(1) both ends — queues/BFS (11, 20)
+heapq.heappush / heappop          # priority queues (23)
+bisect.bisect_left(sorted_a, x)   # binary search in one call (14)</code></pre>
+
+  <h2>Idioms that compress interview code</h2>
+  <pre><code>for i, x in enumerate(nums): ...            # index + value, never range(len())
+for a, b in zip(xs, ys): ...                # parallel iteration
+if all(c.isdigit() for c in s): ...         # all()/any() over a generator
+best = max(intervals, key=lambda iv: iv[1]) # max/min with a key
+squares = {x: x*x for x in nums}            # dict/set comprehensions
+a, b = b, a                                 # swap — no temp (reverse_list, 13!)
+matrix = [[0] * cols for _ in range(rows)]  # 2-D init — see gotcha #2
+list(zip(*matrix))                          # transpose (rotate-image problems)
+divmod(x, 10)                               # (x // 10, x % 10) — digit problems
+float("inf")                                # safe sentinel for min-hunts (37)</code></pre>
+
+  <h2>The three gotchas that bite in interviews</h2>
+  <h3>1. Mutable default arguments</h3>
+  <pre><code>def bfs(start, visited=set()):      # ONE set, shared across ALL calls
+    ...
+# second test case inherits the first's visited set → wrong answers.
+def bfs(start, visited=None):       # the standard fix
+    visited = visited if visited is not None else set()</code></pre>
+  <p>Defaults are evaluated <em>once at definition</em>. (Lesson 34's <code>memo={}</code> exploited this deliberately — as a shared cache it's a feature; as shared state between test cases it's a bug. Know which you're doing.)</p>
+  <h3>2. <code>[[0] * cols] * rows</code> — aliased rows</h3>
+  <pre><code>grid = [[0] * 3] * 2                # TWO references to ONE row
+grid[0][0] = 9                      # → [[9, 0, 0], [9, 0, 0]]  !!
+grid = [[0] * 3 for _ in range(2)]  # fresh row each time ✓</code></pre>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-alias"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const fr = [
+      { cells: [[0, 0, 0], [0, 0, 0]],
+        note: "grid = [[0] * 3] * 2 — LOOKS like a clean 2&#215;3 grid of zeros. It's actually two references to ONE row object." },
+      { cells: [[{ v: 9, cls: "bad" }, 0, 0], [{ v: 9, cls: "bad" }, 0, 0]],
+        note: "grid[0][0] = 9 … and BOTH rows change. The outer * copied POINTERS (Lesson 12, biting back), not rows. In a DP table this corrupts every row at once — silently." },
+      { cells: [[0, 0, 0], [0, 0, 0]],
+        note: "The fix: grid = [[0] * 3 for _ in range(2)] — the comprehension re-runs [0] * 3 each iteration, building a FRESH row every time." },
+      { cells: [[{ v: 9, cls: "good" }, 0, 0], [0, 0, 0]],
+        note: "grid[0][0] = 9 — only row 0 changes. Independent rows. Type the comprehension form reflexively; this bug has eaten real interview minutes." }
+    ];
+    Viz.player("viz-alias", { caption: "the aliased-rows gotcha, live", view: Viz.grid, frames: fr });
+  })();
+  </script>
+  <p>The outer <code>*</code> copies <em>references</em> (Lesson 12's pointers, biting back). Every 2-D DP table (36) starts here — get it right reflexively.</p>
+  <h3>3. Shallow copy of nested structures</h3>
+  <pre><code>path.copy() / path[:]     # copies the LIST, not lists inside it
+# fine for backtracking's flat paths (26);
+# for nested boards: import copy; copy.deepcopy(board) — O(cells), say the cost.</code></pre>
+
+  <h2>Sorting recap in three lines (it's that central)</h2>
+  <pre><code>arr.sort()                                   # in place, returns None (16!)
+sorted(pairs, key=lambda p: (p[0], -p[1]))   # tuple keys: X asc, Y desc
+merged.sort(key=lambda iv: iv[0])            # intervals: by start (39)</code></pre>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>This kit is also everyday research code: <code>Counter</code> builds token frequency tables (the first step of BPE training), <code>defaultdict(list)</code> holds inverted indexes in retrieval prototypes, <code>heapq</code> drives beam candidates, and the aliased-rows gotcha has silently corrupted more than one attention-mask initialization in the wild. Interview fluency and notebook fluency are the same muscle.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: the official <a href="https://docs.python.org/3/library/collections.html">collections docs</a> — skim Counter and defaultdict end to end once; there are methods you don't know you have.</li>
+    <li>Drill: re-solve "Top K Frequent Elements" in under 8 lines using today's kit. Then keep the <a href="../reference/python-toolkit.html">reference sheet</a> beside all future practice.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Golf is not the goal — clarity at speed is. If a one-liner needs a comment, write the three-liner. Ask Claude Code to review any solution for 'idiomatic but readable' — it's a specific, learnable register.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="41-interview-loop.html">← 41 The interview loop</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="43-design-problems.html">43 Design problems →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "def collect(x, seen=[]):\n    seen.append(x)\n    return seen\n\nprint(collect(1))\nprint(collect(2))",
+    prompt: "What prints?",
+    options: ["[1] then [1, 2]", "[1] then [2]", "[1, 2] then [1, 2]", "an UnboundLocalError"],
+    answer: 0,
+    explain: "One list, created at def-time, shared across calls — the second call appends to the survivor of the first. The =None dance is the fix; reciting WHY (definition-time evaluation) is the interview point."
+  },
+  {
+    code: "grid = [[0] * 3] * 2\ngrid[0][0] = 9",
+    prompt: "grid is now…",
+    options: ["[[9, 0, 0], [9, 0, 0]]", "[[9, 0, 0], [0, 0, 0]]", "[[9, 9], [0, 0], [0, 0]]", "unchanged — a TypeError was raised"],
+    answer: 0,
+    explain: "Both 'rows' are the same object; writing through one is visible through the other. List-comprehension initialization creates fresh rows. This bug hides inside every hand-rolled DP table."
+  },
+  {
+    code: "from collections import Counter\nCounter(\"aabbbc\").most_common(2)",
+    prompt: "Returns…",
+    options: ["[('b', 3), ('a', 2)]", "[('a', 2), ('b', 3)]", "{'b': 3, 'a': 2}", "['b', 'a']"],
+    answer: 0,
+    explain: "most_common(k) = top-k (count-descending) as (element, count) tuples. 'Top K Frequent Elements' is nearly this one call — knowing it exists IS the speedup."
+  },
+  {
+    code: "import bisect\narr = [10, 20, 20, 30]\nbisect.bisect_left(arr, 20), bisect.bisect_right(arr, 20)",
+    prompt: "The pair is…",
+    options: ["(1, 3)", "(1, 2)", "(2, 3)", "(0, 3)"],
+    answer: 0,
+    explain: "left = first valid slot (index 1, before the 20s); right = past the last (index 3). Their difference counts occurrences in O(log n) — a tidy trick for sorted-array counting."
+  },
+  {
+    prompt: "Review from 41: the interviewer says n can be 10⁹. The complexity ceiling this implies is…",
+    options: [
+      "O(n) at most — and O(log n)/O(1) if per-element work isn't trivial",
+      "O(n log n) — sorting is always acceptable",
+      "O(n²) with a small constant",
+      "input size doesn't constrain complexity"
+    ],
+    answer: 0,
+    explain: "10⁹ simple ops ≈ seconds; anything superlinear is dead. At this size suspect binary search on an answer space (15), math, or bit tricks — the bound is a hint, decode it."
+  }
+]);
+</script>
+</body>
+</html>

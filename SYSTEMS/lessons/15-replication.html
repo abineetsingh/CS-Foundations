@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 15 — Replication</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 15 · ~30 minutes · Systems Design · Phase 2</span>
+  <h1>Replication</h1>
+  <p class="lede">One skill, learned today: add replicas to a database — for survival and for read scale — and name the lag-shaped bugs that come free with them.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Since lesson 05 you've carried an open wound: notes.db lives on ONE disk. Replication closes it — and simultaneously answers "how do we scale reads past the cache?" It also introduces the course's first genuinely <em>distributed</em> problem: copies that disagree. Phase 3 grows out of this lesson.</p>
+  </div>
+
+  <h2>Leader–follower: the standard shape</h2>
+  <p><a href="../reference/glossary.html#replication">Replication</a> = keeping live copies of the same data on multiple machines. The dominant arrangement is <strong>leader–follower</strong> (primary/replica): all <em>writes</em> go to the one leader; the leader streams its change log to followers, which apply it in order; <em>reads</em> can go to any copy <a href="https://dataintensive.net/">[DDIA ch. 6]</a>. This buys three things at once:</p>
+  <ul>
+    <li><strong>Durability beyond one disk</strong> — the machine can burn down; the data exists elsewhere.</li>
+    <li><strong>Read scale</strong> — 3 replicas ≈ 3× read throughput, stacking with your cache (09): misses spread over followers.</li>
+    <li><strong>Availability</strong> — leader dies → promote a follower (<a href="../reference/glossary.html#failover">failover</a>). Sixty seconds of automated drama instead of a day of data recovery.</li>
+  </ul>
+  <p>Why one leader? Because single-writer <em>sidesteps write conflicts entirely</em> — two simultaneous writes meet at one place, where transactions (14) already know how to referee them. Multi-leader exists (multi-region) and buys those conflicts back; treat it as an advanced tool you name, not reach for.</p>
+
+  <h2>The catch: replication lag</h2>
+  <p>The leader doesn't wait for followers (asynchronous replication — waiting on every follower would make every commit as slow as the slowest machine, and a dead follower would freeze all writes). So followers run <em>slightly behind</em>: <a href="../reference/glossary.html#replication-lag">replication lag</a> — usually milliseconds, sometimes seconds under load. The classic bug it mints:</p>
+  <div id="flow"></div>
+  <p>Standard mitigations, in interview-ready form:</p>
+  <table>
+    <tr><th>Fix</th><th>How</th></tr>
+    <tr><td><strong>Read-your-writes routing</strong></td><td>after a user writes, serve <em>that user's</em> reads from the leader for ~1 min (or until replicas catch up to their write's position)</td></tr>
+    <tr><td>Sticky-to-leader for critical reads</td><td>balances, permissions, checkout — always read from the leader; feeds and timelines — replicas are fine</td></tr>
+    <tr><td>Semi-synchronous</td><td>leader waits for <em>one</em> follower to confirm — bounded durability loss, modest latency cost</td></tr>
+  </table>
+  <p>Note the shape of the reasoning — <em>classify reads by how much staleness they tolerate</em> — the exact skill from cache staleness (09/10), now applied to the database itself. Lesson 18 gives this family of guarantees its proper names.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Model weights are replicated state with a luxurious property: they're immutable between releases — replication with zero lag problems (that's just a file copy). The <em>actual</em> replication headaches at AI labs live in the ordinary places: user data, conversation history, usage/billing counters. A "wrong balance after payment" bug at an API company is this lesson's animation, verbatim.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: DDIA 2nd ed., ch. 6 (Replication) — the lag anomalies section (read-your-writes, monotonic reads) is the interview differentiator. Free skim: <a href="https://github.com/donnemartin/system-design-primer#replication">Primer on replication</a>.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="14-transactions-and-acid.html">← 14 Transactions &amp; ACID</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="16-partitioning-and-sharding.html">16 Partitioning &amp; sharding →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "user", label: "User", sub: "posts, then refreshes" },
+    { id: "app", label: "App fleet" },
+    { id: "leader", label: "Leader", sub: "all writes", row: 1 },
+    { id: "f1", label: "Follower 1", sub: "reads", row: 1 },
+    { id: "f2", label: "Follower 2", sub: "reads", row: 1 },
+  ],
+  links: [["user","app"], ["app","leader"], ["app","f1"], ["app","f2"], ["leader","f1"], ["leader","f2"]],
+  steps: [
+    { from: "user", to: "app", packet: "POST /tweets",
+      caption: "Ada posts a tweet. Writes have exactly one destination:" },
+    { from: "app", to: "leader", packet: "INSERT (commit)",
+      caption: "The leader commits it (full ACID, lesson 14) and immediately acknowledges. It does NOT wait for followers — that's asynchronous replication." },
+    { from: "leader", to: "f1", packet: "change log →",
+      caption: "The leader streams its change log outward; followers apply it in order. Follower 1 gets it in 20 ms. Follower 2 is busy and runs ~2 s behind. Lag is born." },
+    { from: "user", to: "app", packet: "GET /profile (refresh)",
+      caption: "Ada instantly refreshes her profile to admire the tweet. The app routes the read to a replica — that's what replicas are for…" },
+    { from: "app", to: "f2", packet: "read → stale copy",
+      caption: "…and it lands on Follower 2, which hasn't applied the insert yet. Ada's own tweet is MISSING. She hits refresh in confusion. The bug every replicated system ships on day one." },
+    { from: "app", to: "leader", packet: "her reads → leader (60s)",
+      caption: "Fix — read-your-writes: after Ada writes, route HER reads to the leader briefly. Everyone else can tolerate 2-second-old timelines (declared staleness, as ever)." },
+    { at: "leader",
+      caption: "💥 Different day: the leader dies. Failover: detect (heartbeats time out) → promote the most caught-up follower → repoint writes. Async lag means the last moments of writes may be lost — say this tradeoff OUT LOUD in interviews." },
+    { at: ["f1"],
+      caption: "Follower 1 is now the leader. Total: three machines, one write point, read scale, disk-loss immunity, and two named bugs (lag reads, failover loss) you know the mitigations for. That's replication, whole." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Why do all writes go to a single leader?",
+    options: [
+      "one arbiter means no write conflicts",
+      "followers lack the disk write speed",
+      "SQL requires one connection for writes",
+      "leaders hold the only full copy",
+    ],
+    answer: 0,
+    explain: "Single-writer makes concurrent writes meet at one place, where transactions already referee them. Multi-leader reintroduces conflict resolution — a cost you name, not default to." },
+  { prompt: "User saves a setting, reloads, sees the OLD value, reloads again — it appears. Root cause?",
+    options: [
+      "a replica read beat the replication",
+      "the cache returned an expired entry",
+      "the transaction rolled back silently first",
+      "the browser cached the stale page",
+    ],
+    answer: 0,
+    explain: "Textbook replication lag: write committed on the leader; first read hit a behind follower; second read hit a caught-up copy. Fix: read-your-writes routing." },
+  { prompt: "Which read should ALWAYS go to the leader?",
+    options: [
+      "a balance check during withdrawal",
+      "a public profile page view",
+      "a trending-hashtags list refresh",
+      "a month-old analytics dashboard",
+    ],
+    answer: 0,
+    explain: "Money decisions on stale data = incidents. Classify reads by staleness tolerance: correctness-critical → leader; everything else → replicas. Same reasoning as cache placement." },
+  { prompt: "Async replication + leader crash. What's the honest risk to state in an interview?",
+    options: [
+      "recent acknowledged writes may vanish",
+      "followers corrupt during the promotion",
+      "reads block until a restore",
+      "the schema must be rebuilt",
+    ],
+    answer: 0,
+    explain: "Writes acked by the leader but not yet streamed die with it. Mitigation: semi-sync (wait for one follower). Naming this unprompted is senior-signal." },
+  { prompt: "Spaced review — Lesson 09: three followers now serve reads. Does this replace the cache?",
+    options: [
+      "no, caches still cut latency thousandfold",
+      "yes, replicas make caching fully redundant",
+      "yes, unless the replicas fall behind",
+      "no, caches are needed for writes",
+    ],
+    answer: 0,
+    explain: "Replicas multiply DB read capacity ~3×; a 99% hit-rate cache divides DB load 100× and answers in ~1 ms. They stack: cache absorbs, replicas share the misses." },
+]);
+</script>
+</body>
+</html>

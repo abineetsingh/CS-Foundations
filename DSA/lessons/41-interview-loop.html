@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 41 — The Interview Loop</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 41 · Phase 5 · ~30 minutes</span>
+  <h1>The Interview Loop: A Repeatable Protocol</h1>
+  <p class="lede">Today's skill: a six-step protocol that turns "solve this under pressure" into a rehearsed procedure — because interviews grade the process, not just the answer.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>You now know the algorithms. Interviews measure something adjacent: can you <em>communicate</em> problem-solving — thinking aloud, structuring ambiguity, verifying honestly? Candidates fail with correct code silently written, and pass with imperfect code lucidly reasoned. The protocol below is distilled from the <a href="https://www.techinterviewhandbook.org/coding-interview-cheatsheet/">Tech Interview Handbook's</a> battle-tested framework.</p>
+  </div>
+
+  <h2>The six steps (45-minute budget in brackets)</h2>
+  <h3>1. Clarify — before ANY solving [3–5 min]</h3>
+  <p>Restate the problem in your own words. Then ask: input size and ranges? duplicates? sorted? empty/null cases? what to return on failure? <em>"Can I assume the array is non-empty, or should I handle that?"</em> — every question signals engineering maturity, and input size hints the target complexity (n ≤ 20 → exponential fine (26); n ≈ 10⁵ → O(n log n) or better; n ≈ 10⁸ → O(n) or O(log n)).</p>
+  <h3>2. Work an example by hand [2–3 min]</h3>
+  <p>A concrete input, worked on the shared doc/whiteboard. This isn't for the interviewer — it's how your pattern recognition (all 40 lessons of it) actually fires.</p>
+  <h3>3. State the brute force — out loud, don't code it [2 min]</h3>
+  <p><em>"Brute force: check all pairs, O(n²). Let me look for better."</em> This banks a working answer, sets the baseline, and — critically — gives you the gap to attack: <em>what's redundant in the brute force?</em> (Recompute → cache/window. Search → hash/sort/binary. All paths → DP.)</p>
+  <h3>4. Optimize, narrating the pattern hunt [5–10 min]</h3>
+  <p>Run your tells aloud: <em>"Sorted input — two pointers? … 'Fewest steps' — BFS? … Budget + take-or-skip — knapsack?"</em> Wrong turns spoken are fine (they show method); silence is the killer. Agree on the approach with the interviewer <strong>before</strong> writing code — they'll often steer you off a doomed path, which is help you only get by talking.</p>
+  <h3>5. Code it — clean, top to bottom [10–15 min]</h3>
+  <p>Real variable names (<code>left</code>, not <code>l</code>), helper functions for sub-tasks, and keep narrating at the level of <em>chunks</em> ("now the shrink-loop maintains the invariant…"). If stuck on a detail, write a TODO and move — a complete skeleton with one gap beats a perfect fragment.</p>
+  <h3>6. Verify before declaring victory [5 min]</h3>
+  <p>Trace your code — line by line, updating variables on the example from step 2 <em>as if you didn't write it</em>. Then edge cases: empty, single element, duplicates, extremes. Then, unprompted: <em>"Time is O(n log n) for the sort dominating the O(n) sweep; space is O(n) for the table — where n is the number of intervals."</em> Complexity, both kinds, with n defined (the Lesson 01 phrasing, now habitual). Saying "done" without this step is the single most common self-inflicted rejection.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-protocol"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const steps = ["1 clarify", "2 example", "3 brute", "4 optimize", "5 code", "6 verify"];
+    const info = [
+      ["min 0&#8211;5", "&#8220;Let me restate the problem… Can the array be empty? Duplicates? How large can n get?&#8221; — n's size TELLS you the target complexity."],
+      ["min 5&#8211;8", "Work a concrete input by hand on the shared doc. This one is for YOU — hands-on examples are what make the pattern-tells fire."],
+      ["min 8&#8211;10", "&#8220;Brute force: check every pair, O(n&#178;). Now let me find the redundancy.&#8221; — a banked answer AND a named target to attack."],
+      ["min 10&#8211;18", "Hunt out loud: &#8220;Sorted &#8594; two pointers? Budget + items &#8594; knapsack?&#8221; Agree on the approach BEFORE coding. Spoken wrong turns score; silence doesn't."],
+      ["min 18&#8211;33", "Real variable names, helpers for sub-tasks, narrate at the chunk level. Stuck on a detail? TODO it and keep the skeleton whole."],
+      ["min 33&#8211;40", "Trace it like you didn't write it; edge cases; then unprompted: &#8220;O(n log n) time, O(n) space, where n is…&#8221;. THEN say done."]
+    ];
+    const fr = [{ cells: steps.map(s => ({ v: s })), noIdx: true,
+      note: "A 45-minute interview, budgeted. Step through — each note is what you're DOING and SAYING in that window." }];
+    steps.forEach(function (s, i) {
+      fr.push({ cells: steps.map((x, j) => j === i ? { v: x, cls: "hl" } : (j < i ? { v: x, cls: "good" } : { v: x })), noIdx: true,
+        note: `<strong>${info[i][0]}</strong> — ${info[i][1]}` });
+    });
+    fr.push({ cells: steps.map(s => ({ v: s, cls: "good" })), noIdx: true,
+      note: "Six steps, rehearsed until reflex. The protocol is what's graded — run every practice problem through it, out loud, starting today." });
+    Viz.player("viz-protocol", { caption: "the interview loop as a 45-minute timeline", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>Recovery moves (you WILL need them)</h2>
+  <table>
+    <tr><th>Situation</th><th>Move</th></tr>
+    <tr><td>blank on the pattern</td><td>back to step 2: work a bigger example, watch what your hands do — then name it</td></tr>
+    <tr><td>solution half-works</td><td>say exactly which cases break; fixing a stated flaw reads far better than hiding it</td></tr>
+    <tr><td>hint offered</td><td>take it gracefully and USE it — refusing hints is a red flag, not a flex</td></tr>
+    <tr><td>time nearly up</td><td>describe the remaining plan in precise words; unfinished-but-mapped scores real points</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>AI-lab interviews leans harder on this protocol than big-tech ones: research culture prizes <em>reasoning transparency</em> — the same quality you'd want in a model's chain of thought. Practically: OpenAI/Anthropic loops mix classic DSA rounds with practical coding (Lesson 44), and BOTH grade the think-aloud protocol. This lesson is the transferable layer.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: <a href="https://www.techinterviewhandbook.org/coding-interview-cheatsheet/">Tech Interview Handbook — coding interview cheatsheet</a> (read it fully; it's the best free resource on interview mechanics).</li>
+    <li><strong>New ritual</strong>: every problem from today on is a mock — timer at 30 minutes, protocol from step 1, OUT LOUD (yes, alone at your desk). The narration muscle is the one that atrophies without rehearsal.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Claude Code can run full mock interviews: it plays interviewer with an unseen problem, stays silent while you drive, drops hints if you stall, then debriefs against this protocol. Schedule one this week — say "mock interview me."</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="40-bit-manipulation.html">← 40 Bit manipulation (short)</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="42-python-toolkit.html">42 Python interview toolkit →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Stating the brute force before optimizing serves what strategic purpose?",
+    options: [
+      "banks a fallback answer AND exposes the redundancy your optimization will attack",
+      "runs out the clock while you think",
+      "the interviewer always requires it verbatim",
+      "brute force is usually the expected answer"
+    ],
+    answer: 0,
+    explain: "It converts 'find something clever' into 'remove THIS specific waste' — recompute→cache, search→hash, all-paths→DP. Optimization becomes directed, not hopeful. And if optimization fails, you still have working O(n²) to code."
+  },
+  {
+    prompt: "The interviewer says the input is 'up to 10⁵ elements.' Your target complexity is…",
+    options: [
+      "O(n log n) or better — O(n²) is 10¹⁰ operations, seconds too slow",
+      "O(n²) — modern machines handle it",
+      "O(2ⁿ) with pruning",
+      "irrelevant — correctness is all that's graded"
+    ],
+    answer: 0,
+    explain: "~10⁷–10⁸ simple ops/second is the planning number: 10¹⁰ = way over budget. Input bounds are the interviewer TELLING you the intended complexity — decode them in step 1, every time."
+  },
+  {
+    prompt: "You realize mid-solution your approach fails on duplicates. Best move:",
+    options: [
+      "say it immediately, characterize which inputs break, and propose the fix",
+      "keep coding — it passes the given example",
+      "start over silently with a new approach",
+      "ask for a different question"
+    ],
+    answer: 0,
+    explain: "Self-caught flaws, stated crisply, are among the strongest positive signals (it's what real engineers do in code review). Hidden flaws found by the interviewer are among the worst."
+  },
+  {
+    prompt: "Tracing your finished code on an example 'as if you didn't write it' catches what the author's eye misses because…",
+    options: [
+      "executing values line by line checks the code that EXISTS, not the code you intended",
+      "interviewers award points per trace performed",
+      "it doubles as a complexity analysis",
+      "it proves the example was well-chosen"
+    ],
+    answer: 0,
+    explain: "Authors read intentions; traces execute reality — off-by-ones, swapped args, and un-updated variables surface in the mismatch. Same reason tests beat rereading."
+  },
+  {
+    prompt: "Review from 34/37: the four-question DP recipe you'd narrate in step 4 is…",
+    options: [
+      "state, transition (the last-move menu), base cases, cache/table order",
+      "sort, sweep, merge, return",
+      "brute force, memoize, tabulate, squeeze",
+      "clarify, example, code, verify"
+    ],
+    answer: 0,
+    explain: "Narrating these four AS you fill them is DP-under-pressure, solved. (Option 3 is a fine implementation sequence — but the four questions are what DESIGN the solution.)"
+  }
+]);
+</script>
+</body>
+</html>

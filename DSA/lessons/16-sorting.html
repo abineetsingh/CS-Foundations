@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 16 — Sorting</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 16 · Phase 1 · ~25 minutes</span>
+  <h1>Sorting: What Interviews Actually Require</h1>
+  <p class="lede">Today's skill: wield Python's sort fluently (keys, stability), and know the landscape — what costs what, and when "sort first" unlocks a problem.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>You will almost never implement a sort in an interview — you'll <em>use</em> one as a step. The real skills: custom keys without fumbling, knowing sort's O(n log n) price, and the strategic instinct for when paying it simplifies everything (it's the precondition for two pointers, binary search, and the entire intervals pattern).</p>
+  </div>
+
+  <h2>Using Python's sort like a professional</h2>
+  <pre><code>arr.sort()                        # in place, returns None (a classic gotcha)
+sorted(arr)                       # new list, original untouched
+arr.sort(reverse=True)            # descending
+
+words.sort(key=len)               # sort BY something: a key function
+pairs.sort(key=lambda p: p[1])    # by second element
+items.sort(key=lambda x: (x.priority, -x.score))   # tie-break via tuples</code></pre>
+  <p>Both are <strong>Timsort</strong>: O(n log n) worst case, O(n) on already-mostly-sorted data, O(n) extra space, and <strong>stable</strong> — equal elements keep their original order. Stability is why the tuple-key trick works, and why you can sort by one field, then another, and both orders survive.</p>
+
+  <h2>The landscape (concept level — implementation comes with recursion)</h2>
+  <table>
+    <tr><th>Algorithm</th><th>Time</th><th>Space</th><th>Worth knowing because…</th></tr>
+    <tr><td>Merge sort</td><td><code>O(n log n)</code> always</td><td><code>O(n)</code></td><td>the canonical divide &amp; conquer — you'll build it in Lesson <a href="./18-recursion-ii.html">18</a></td></tr>
+    <tr><td>Quicksort</td><td><code>O(n log n)</code> avg, <code>O(n²)</code> worst</td><td><code>O(log n)</code></td><td>partitioning idea powers quickselect (top-K without a heap)</td></tr>
+    <tr><td>Timsort (Python's)</td><td><code>O(n log n)</code></td><td><code>O(n)</code></td><td>merge sort tuned for real-world runs; stable</td></tr>
+    <tr><td>Counting/bucket sort</td><td><code>O(n + k)</code></td><td><code>O(k)</code></td><td>beats n log n when values live in a small range k — the loophole below</td></tr>
+  </table>
+  <p>Two facts to say on cue: <strong>comparison-based sorting cannot beat O(n log n)</strong> (information-theoretic lower bound — n! orderings need log₂(n!) ≈ n log n comparisons to distinguish); and counting sort escapes the bound by not comparing at all — it indexes by value. "Sort Colors" (three values) is the classic exploit.</p>
+
+  <h2>The strategic move: buy structure, then cash it in</h2>
+  <p>Unsorted data supports almost no clever patterns. Paying O(n log n) up front buys sortedness, which unlocks:</p>
+  <ul>
+    <li><strong>Two pointers</strong> (Lesson 06) — pair-finding drops to O(n)</li>
+    <li><strong>Binary search</strong> (Lesson 14) — lookups drop to O(log n)</li>
+    <li><strong>Neighbors become adjacent</strong> — closest pair, duplicates, "merge intervals" (Lesson 39) all become single passes</li>
+  </ul>
+  <p>Decision rule: if a hash map gives O(n) without sorting, prefer it. But if the problem talks about <em>order, ranges, closeness, or intervals</em>, "what if I sort first?" should be among your first three thoughts. One caveat: sorting destroys original indices — if the answer needs them, sort <code>(value, index)</code> pairs or use the hash map instead (Two Sum's trap).</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-sortfirst"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const raw = [14, 3, 9, 21, 7], fr = [];
+    fr.push({ cells: raw.slice(),
+      note: "Closest pair? Unsorted, ANY two could be closest — all pairs is O(n&#178;): 10 comparisons here, half a million at n = 1000." });
+    const a = raw.slice().sort((x, y) => x - y);
+    fr.push({ cells: a.map(v => ({ v: v, cls: "hl" })),
+      note: "Pay O(n log n) once: sorted. Structure bought — the closest pair now MUST be adjacent, because neighbors in value became neighbors in position." });
+    let best = Infinity, bi = 0;
+    for (let i = 0; i + 1 < a.length; i++) {
+      const g = a[i + 1] - a[i];
+      const nb = g < best;
+      if (nb) { best = g; bi = i; }
+      fr.push({ cells: a.map((v, j) => (j === i || j === i + 1) ? { v: v, cls: nb ? "good" : "hl" } : v),
+        note: `gap(${a[i]}, ${a[i + 1]}) = ${g}${nb ? " — new best" : ""}. Only adjacent pairs need checking: 4 comparisons total, not 10.` });
+    }
+    fr.push({ cells: a.map((v, j) => (j === bi || j === bi + 1) ? { v: v, cls: "good" } : { v: v, cls: "dim" }),
+      note: `Answer: (${a[bi]}, ${a[bi + 1]}), gap ${best}. The sort dominates: O(n log n) total — sorting BOUGHT the adjacency that made one linear sweep sufficient.` });
+    Viz.player("viz-sortfirst", { caption: "buy structure, then cash it in — closest pair via sort-then-sweep", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Every top-k sampling step sorts (or partial-sorts) the logits; retrieval systems sort candidates by similarity score; and "argsort" is a tensor primitive you'll meet constantly. The n log n lower bound is one reason vector databases work hard to avoid full sorts — approximate top-k beats exact ordering at scale (Lesson 23 shows the heap version).</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson — Phase 1 milestone</h2>
+  <ul>
+    <li><strong>Primary source</strong>: <a href="https://neetcode.io/courses/dsa-for-beginners/0">NeetCode DSA for Beginners</a> → Insertion/Merge/Quick sort chapters (watch; don't memorize code yet).</li>
+    <li><strong>Milestone check</strong>: pick three unseen easies from <a href="https://neetcode.io/practice/practice/neetcode250">NeetCode 250</a> (arrays/strings sections). For each, name the pattern within 5 minutes before coding. Report your hit rate to Claude Code — 3/3 means Phase 2 starts.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>That log₂(n!) ≈ n log n lower-bound argument is a beautiful one-minute proof. Ask Claude Code to walk it via 'twenty questions' — every comparison is a yes/no question, and there are n! possible answers.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="15-binary-search-ii.html">← 15 Binary search II</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="17-recursion-i.html">17 Recursion I →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "result = arr.sort()",
+    prompt: "What is result?",
+    options: ["None", "the sorted list", "a sorted copy", "an iterator"],
+    answer: 0,
+    explain: "sort() mutates in place and returns None — Python's convention for mutators. Want the value? sorted(arr). This gotcha bites in live interviews constantly."
+  },
+  {
+    code: "events.sort(key=lambda e: (e.day, -e.priority))",
+    prompt: "This sorts events…",
+    options: [
+      "by day ascending; ties broken by priority descending",
+      "by day descending; ties broken by priority ascending",
+      "by priority first, then by day",
+      "randomly — tuples aren't comparable"
+    ],
+    answer: 0,
+    explain: "Tuples compare element by element; negation flips numeric order. This one-liner is the workhorse for every 'sort by X then Y' requirement."
+  },
+  {
+    prompt: "Why can't any comparison-based sort beat O(n log n)?",
+    options: [
+      "distinguishing n! possible orderings needs at least log₂(n!) yes/no comparisons",
+      "each element must be moved at least log n times",
+      "memory bandwidth limits all sorts to n log n",
+      "it can — quicksort averages O(n) on random data"
+    ],
+    answer: 0,
+    explain: "Each comparison is one bit of information; log₂(n!) ≈ n log n bits are required. Counting sort sidesteps this by indexing on values instead of comparing."
+  },
+  {
+    code: "\"Given points on a line, find the pair with the\nsmallest gap.\"",
+    prompt: "Best approach?",
+    options: [
+      "sort (n log n), then one pass over adjacent pairs",
+      "hash map of point positions, one pass",
+      "check all pairs — O(n²) is required here",
+      "binary search each point against the others"
+    ],
+    answer: 0,
+    explain: "After sorting, the closest pair must be adjacent — a one-pass scan. Hash maps don't understand 'closeness'; that's an ORDER question, so buy sortedness."
+  },
+  {
+    prompt: "Review from 15: 'minimize the maximum subarray sum when splitting into k parts.' Why is this an answer-space binary search?",
+    options: [
+      "feasibility ('can we split with max ≤ x?') is monotonic in x, and checking is one greedy pass",
+      "the array must be sorted before splitting",
+      "k is small, so all splits can be enumerated",
+      "the answer is always sum(arr) / k rounded up"
+    ],
+    answer: 0,
+    explain: "Bigger allowance never hurts → monotonic. Greedily pack until the budget x breaks, count pieces: O(n) check, O(log range) searches. Tell: 'minimize the maximum.'"
+  }
+]);
+</script>
+</body>
+</html>

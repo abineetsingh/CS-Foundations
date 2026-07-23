@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 — Scaling &amp; Statelessness</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 07 · ~25 minutes · Systems Design</span>
+  <h1>Scaling &amp; Statelessness</h1>
+  <p class="lede">One skill, learned today: explain the two ways to scale, why the second one wins, and the one property your servers must have to allow it.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Lesson 06's envelope said "50,000 peak QPS" — one machine can't serve that. What you do next is the fork in every architecture: scale <em>up</em> or scale <em>out</em>. Interviews assume you'll scale out and probe whether you understand the price of admission: statelessness.</p>
+  </div>
+
+  <h2>Up vs out</h2>
+  <table>
+    <tr><th></th><th><a href="../reference/glossary.html#vertical-scaling">Vertical</a> ("scale up")</th><th><a href="../reference/glossary.html#horizontal-scaling">Horizontal</a> ("scale out")</th></tr>
+    <tr><td>Move</td><td>buy a bigger machine</td><td>add more machines</td></tr>
+    <tr><td>Effort</td><td>zero code changes — just money</td><td>architecture must cooperate</td></tr>
+    <tr><td>Ceiling</td><td>hard: the biggest machine money buys, and prices grow superlinearly</td><td>soft: keep adding (Google-scale runs this way)</td></tr>
+    <tr><td>Failure story</td><td>the one machine dies → you're down</td><td>one of N dies → capacity dips ~1/N</td></tr>
+  </table>
+  <p>Verdict used in practice: scale up <em>first</em> (it's cheap in effort — never build a distributed system you don't need), but design so that scaling <em>out</em> stays possible — because only out removes both the ceiling and the single point of failure. The mental shift is <strong>pets → cattle</strong>: servers stop being precious named individuals and become an interchangeable herd.</p>
+
+  <h2>The price of admission: statelessness</h2>
+  <p>Run two copies of your lesson-03 notes API (the dict version) and route users to either copy: notes created on server A don't exist on server B. Worse with logins — if server A holds "user 42 is logged in" in memory, requests landing on B get 401s. Requests must be free to land <em>anywhere</em>, so:</p>
+  <div class="note">
+    <span class="callout-label">The rule</span>
+    <p>A <a href="../reference/glossary.html#stateless">stateless</a> service keeps no client-visible state between requests in its own memory. All truth lives in shared external stores (database, cache, object storage). Any server can then serve any request — which is exactly what lets you add servers freely <a href="https://12factor.net/processes">[Twelve-Factor App: processes]</a>.</p>
+  </div>
+  <p>The classic offender is the <a href="../reference/glossary.html#session">session</a> — "who is logged in." The two production fixes: <strong>externalize it</strong> (session data in a shared store like Redis, keyed by a cookie) or <strong>carry it in the request</strong> (a cryptographically signed token the server can verify without remembering anything — the JWT idea; details in lesson 37). "Sticky sessions" (pin each user to one server) is the crutch to name-and-avoid in interviews: it breaks the moment that server dies.</p>
+  <p>Watch the failure and the fix:</p>
+  <div id="flow"></div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>LLM inference fleets are the same shape: any replica can serve any prompt <em>because the weights are identical and the conversation state arrives in the request</em> (the context) or sits in an external KV-cache tier. When you hear "we route long conversations back to the same replica to reuse its KV-cache" — that's sticky sessions, same tradeoff, same failure mode.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://12factor.net/processes">The Twelve-Factor App, factor VI: Processes</a> (5 min) — the canonical statement of "share nothing, externalize state," written by Heroku's founders and still the industry's common vocabulary.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="06-capacity-estimation.html">← 06 Back-of-envelope capacity estimation</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="08-load-balancing.html">08 Load balancing →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "User 42", sub: "the client" },
+    { id: "a", label: "Server A", row: 1 },
+    { id: "b", label: "Server B", row: 1 },
+    { id: "store", label: "Shared store", sub: "sessions live here", row: 1 },
+  ],
+  links: [["client","a"], ["client","b"], ["a","store"], ["b","store"]],
+  steps: [
+    { from: "client", to: "a", packet: "POST /login",
+      caption: "User 42 logs in. The request happens to land on Server A." },
+    { at: "a",
+      caption: "THE BUG: Server A records 'user 42 = logged in' in its own process memory. Feels natural. Breaks everything." },
+    { from: "client", to: "b", packet: "GET /notes",
+      caption: "The next request lands on Server B — nothing guarantees the same server twice. B's memory has never heard of user 42… 401. Login roulette." },
+    { at: ["a", "b"],
+      caption: "The fix: make both servers stateless. Neither keeps login state in memory; both consult the same shared store." },
+    { from: "client", to: "a", packet: "POST /login (take 2)",
+      caption: "Login lands on A again — but this time A writes the session to the shared store, not to its own memory." },
+    { from: "a", to: "store", packet: "session[42] = token",
+      caption: "The session now lives outside any one server, exactly like your notes moved into notes.db in lesson 04. Same principle, applied to servers." },
+    { from: "client", to: "b", packet: "GET /notes + cookie",
+      caption: "Next request hits B. B checks the shared store: session valid → 200. Any server can now serve any request…" },
+    { at: ["a", "b"],
+      caption: "…which means you can add Server C, D, E under load, or shoot A at 3am with zero user impact. Cattle, not pets. THAT is why statelessness buys horizontal scale." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Why does horizontal scaling demand stateless servers?",
+    options: [
+      "any server must handle any request",
+      "many servers cannot share one port",
+      "memory is scarce across many machines",
+      "load balancers refuse stateful backends",
+    ],
+    answer: 0,
+    explain: "If a server privately remembers things, requests MUST return to it — pinning users to servers, breaking on failure. Stateless = requests land anywhere." },
+  { prompt: "The pragmatic scaling order for a young system is…",
+    options: [
+      "up first, but keep out possible",
+      "out first, machines are cheap now",
+      "up only, distribution is never worth it",
+      "out only, big machines are obsolete",
+    ],
+    answer: 0,
+    explain: "Vertical is zero-effort — take it early. But design statelessly so horizontal stays available, because only scaling out removes the ceiling and the single point of failure." },
+  { prompt: "What's wrong with sticky sessions as the 'fix' for login state?",
+    options: [
+      "a dead server strands its users",
+      "cookies cannot store routing rules",
+      "they only work below ten servers",
+      "they make every request much slower",
+    ],
+    answer: 0,
+    explain: "Pinning users to one server means that server's death logs them all out (and hot servers can't shed load). It's a crutch, not a fix." },
+  { prompt: "Spaced review — Lesson 06: peak traffic vs average traffic — the usual working assumption is peak is…",
+    options: [
+      "two to ten times the average",
+      "equal to the average, roughly",
+      "one hundred times the average",
+      "impossible to estimate ahead",
+    ],
+    answer: 0,
+    explain: "Traffic is bursty; 2–10× average is the standard envelope multiplier. State your choice out loud in interviews." },
+  { prompt: "Spaced review — Lesson 04: 'externalize the session to Redis' is the same principle as which earlier move?",
+    options: [
+      "moving notes from dict to SQLite",
+      "adding placeholders to SQL queries",
+      "returning 404 for missing notes",
+      "validating bodies with Pydantic models",
+    ],
+    answer: 0,
+    explain: "Both move truth out of one process's memory into a store that outlives and outreaches the process. One principle, two scales." },
+]);
+</script>
+</body>
+</html>

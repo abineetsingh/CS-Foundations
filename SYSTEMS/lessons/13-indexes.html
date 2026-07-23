@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 13 — Indexes</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 13 · ~30 minutes · Systems Design · hands-on · Phase 2</span>
+  <h1>Indexes</h1>
+  <p class="lede">One skill, learned today: predict whether a query scans or seeks, read the plan that proves it, and pay the true price of each index you add.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Add an index on that column" is the single most common database fix in industry, and "what would you index?" reliably follows "design the schema" in interviews. It's also your DSA knowledge cashing in directly: an index is binary search (DSA 14) living on disk.</p>
+  </div>
+
+  <h2>Scan vs seek</h2>
+  <p>Without help, <code>SELECT * FROM tweets WHERE user_id = 2</code> must check <strong>every row</strong> — a <a href="../reference/glossary.html#full-scan">full table scan</a>, O(n) over possibly billions. An <a href="../reference/glossary.html#index">index</a> is a separate, sorted structure mapping <em>column value → row location</em>. Sorted means searchable in O(log n) — millions of rows in a few hops. Databases use a <a href="../reference/glossary.html#btree">B-tree</a>: a binary search tree widened so each node holds hundreds of keys, keeping the tree only 3–4 levels deep — because each level is a disk read, and lesson 05 taught you what those cost <a href="https://dataintensive.net/">[DDIA ch. 4]</a>.</p>
+  <div id="flow"></div>
+
+  <h2>Hands-on: catch the planner in the act</h2>
+  <p>In your <code>twitter.db</code> from lesson 12, ask SQLite to <em>explain itself</em>:</p>
+  <pre><code>sqlite3 twitter.db
+EXPLAIN QUERY PLAN SELECT * FROM tweets WHERE user_id = 2;
+--&gt; SCAN tweets                                  ← the bad word
+
+CREATE INDEX idx_tweets_user ON tweets(user_id);
+
+EXPLAIN QUERY PLAN SELECT * FROM tweets WHERE user_id = 2;
+--&gt; SEARCH tweets USING INDEX idx_tweets_user…   ← the good word</code></pre>
+  <p><code>SCAN</code> → reads everything; <code>SEARCH … USING INDEX</code> → walks the B-tree. Every serious database has this facility (<code>EXPLAIN ANALYZE</code> in Postgres); checking the plan — not guessing — is the professional habit <a href="https://www.sqlite.org/eqp.html">[SQLite: EXPLAIN QUERY PLAN]</a> <a href="https://use-the-index-luke.com/">[Use The Index, Luke]</a>.</p>
+
+  <h2>What indexes cost, and composite keys</h2>
+  <ul>
+    <li><strong>Writes:</strong> every INSERT/UPDATE must also update <em>every index</em> on the table. Five indexes ≈ six writes per insert. Index what you query, not everything — a write-heavy table wants few indexes.</li>
+    <li><strong>Space:</strong> each index is a full sorted copy of its columns.</li>
+    <li><strong>Composite indexes</strong> obey the <em>leftmost-prefix rule</em>: <code>INDEX (user_id, created_at)</code> serves <code>WHERE user_id = ?</code> and <code>WHERE user_id = ? ORDER BY created_at</code> — but is useless for <code>WHERE created_at &gt; ?</code> alone. It's a phone book: sorted by (last, first) — you can't efficiently find everyone named "Ada" by first name. Column order is a design decision.</li>
+  </ul>
+  <p>For the timeline query, the winning move is <code>CREATE INDEX ON tweets(user_id, created_at)</code> — it finds a followee's tweets <em>already in time order</em>, no sort step. Matching the index to the exact (filter, order) shape of the hot query is the craft.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Vector databases confront the identical problem one level up: exact nearest-neighbor search over embeddings is a full scan, so ANN indexes (HNSW — a navigable graph, cousin of the B-tree idea) trade a little recall for O(log-ish) search. When lesson 45 reaches RAG infrastructure, it's this lesson wearing an embedding costume.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://use-the-index-luke.com/sql/anatomy">Use The Index, Luke — Anatomy of an Index</a> (20 min; the best index explainer ever written, free). Then DDIA 2nd ed. ch. 4 for how B-trees and LSM-trees actually hit disk.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="12-relational-modeling-and-sql.html">← 12 Relational modeling &amp; SQL</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="14-transactions-and-acid.html">14 Transactions &amp; ACID →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "query", label: "Query", sub: "WHERE user_id = 2" },
+    { id: "planner", label: "Planner", sub: "chooses the path" },
+    { id: "index", label: "B-tree index", sub: "sorted, 3–4 levels", row: 1 },
+    { id: "table", label: "Table rows", sub: "billions, unsorted", row: 1 },
+  ],
+  links: [["query","planner"], ["planner","index"], ["planner","table"]],
+  steps: [
+    { from: "query", to: "planner", packet: "SELECT … WHERE",
+      caption: "Every query first meets the planner, which asks: do I have a sorted structure over user_id, or must I read everything?" },
+    { from: "planner", to: "table", packet: "no index → SCAN",
+      caption: "Without an index: full scan. Billions of rows, O(n) disk reads. On a 100 GB table this is seconds-to-minutes — at 10,000 QPS, it's an outage." },
+    { from: "planner", to: "index", packet: "with index → SEARCH",
+      caption: "With the index: walk the B-tree. Root → branch → leaf: 3–4 node reads to find user_id = 2, O(log n). Binary search from DSA 14, built wide for disks." },
+    { from: "index", to: "table", packet: "row locations",
+      caption: "Leaves hold row locations; the DB fetches just those rows. (If the index contains every queried column, even this hop vanishes — a 'covering index.')" },
+    { at: "index",
+      caption: "The bill: every INSERT into tweets must also insert into this B-tree — and into every other index on the table. Indexes make reads O(log n) by taxing every write." },
+    { at: ["index", "table"],
+      caption: "Design habit: find the hot query's exact shape — filter columns, then order column — and build ONE composite index matching it: (user_id, created_at). Verify with EXPLAIN, always." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "EXPLAIN QUERY PLAN prints 'SCAN tweets'. It means the database will…",
+    options: [
+      "read every row in the table",
+      "walk the B-tree to the row",
+      "answer straight from the cache",
+      "reject the query as too slow",
+    ],
+    answer: 0,
+    explain: "SCAN = O(n) over the whole table. SEARCH … USING INDEX is the O(log n) path. Reading plans beats guessing, every time." },
+  { prompt: "With INDEX (user_id, created_at), which query gets NO help?",
+    options: [
+      "WHERE created_at > yesterday alone",
+      "WHERE user_id = 2 alone",
+      "WHERE user_id = 2 ORDER BY created_at",
+      "WHERE user_id = 2 AND created_at > yesterday",
+    ],
+    answer: 0,
+    explain: "Leftmost-prefix rule: the index is sorted by user_id first; created_at is only sorted WITHIN each user. Like finding all 'Adas' in a (last, first)-sorted phone book." },
+  { prompt: "Why not index every column, just in case?",
+    options: [
+      "every write pays every index",
+      "databases allow at most ten",
+      "indexes only work on numbers",
+      "the planner gets confused choosing",
+    ],
+    answer: 0,
+    explain: "Each index is another B-tree to update per INSERT/UPDATE, plus a sorted copy on disk. Write-heavy tables want few, deliberate indexes." },
+  { prompt: "An index makes lookups O(log n) because it keeps the data…",
+    options: [
+      "sorted, enabling binary-style search",
+      "compressed, shrinking the disk reads",
+      "cached, avoiding storage entirely",
+      "sharded, spread across the machines",
+    ],
+    answer: 0,
+    explain: "Sorted order is the superpower (DSA 14: binary search needs sorted input). The B-tree keeps it sorted on disk with a fan-out that stays 3–4 levels deep." },
+  { prompt: "Spaced review — Lesson 12: the follows table's PRIMARY KEY (follower_id, followee_id) also prevents…",
+    options: [
+      "following the same person twice",
+      "following users who don't exist",
+      "unfollowing after a single follow",
+      "users following themselves by accident",
+    ],
+    answer: 0,
+    explain: "A primary key enforces uniqueness — duplicate (1,2) rows are rejected. (Nonexistent users are blocked by the FKs; self-follows would need a CHECK constraint.)" },
+]);
+</script>
+</body>
+</html>

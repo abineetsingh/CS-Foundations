@@ -6,11 +6,13 @@ Hands-on work follows the repository's [`LABS.md`](./LABS.md) contract: a hosted
 
 OWASP [ASVS 5.0.0](https://owasp.org/www-project-application-security-verification-standard/) is the verification spine; [Top 10:2025](https://owasp.org/Top10/) supplies awareness vocabulary; [PortSwigger Web Security Academy](https://portswigger.net/web-security/learning-paths) supplies isolated offensive labs; [NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final) anchors production practice. Phase 8 adds the Datadog production AI-security model, official OpenAI and Anthropic guidance, OWASP LLM Top 10, NIST AI RMF, MITRE ATLAS, and MCP security guidance. Each lesson is designed for ~25–35 minutes plus an optional 30–60 minute lab. At three lessons per week, the 67-lesson path is roughly 22 weeks.
 
-**Status (2026-07-22): all 67 lessons are authored.** Filenames `0001`–`0067` in `./lessons/` match this curriculum. Every lesson contains one scoped skill, primary-source grounding, a step-through security-boundary animation, immediate-feedback quiz, authorized practice contract, verification strategy, and course navigation. Phase 8 lessons add an AI attack-path animation; prompt injection, agent tools, and evals add deterministic browser sandboxes. Lessons `0002` onward interleave the current topic with spaced review. Reference documents compress the course into review, vulnerability, threat-model, cryptography, interview, and AI-security runbooks.
+**Status (2026-07-22): all 67 lessons are authored.** Filenames `01`–`67` in `./lessons/` match this curriculum. Every lesson contains one scoped skill, primary-source grounding, a step-through security-boundary animation, immediate-feedback quiz, authorized practice contract, verification strategy, and course navigation. Phase 8 lessons add an AI attack-path animation; prompt injection, agent tools, and evals add deterministic browser sandboxes. Lessons `02` onward interleave the current topic with spaced review. Reference documents compress the course into review, vulnerability, threat-model, cryptography, interview, and AI-security runbooks.
+
+Open [`00-table_of_contents.html`](./00-table_of_contents.html) to browse and launch every lesson as a book.
 
 ## Phase 0 — The security lens (weeks 1–2)
 
-1. **Security is a policy under pressure** — assets, actors, intended policy, adversarial input, and the builder/breaker/defender loop — `0001`
+1. **Security is a policy under pressure** — assets, actors, intended policy, adversarial input, and the builder/breaker/defender loop — `01`
 2. **Rules of engagement and a safe lab** *(hands-on)* — authorization, scope, evidence, stop conditions; browser devtools, curl, Python requests, Burp Community; test only local/academy targets
 3. **Trust boundaries and data-flow diagrams** — processes, stores, flows, entry points; trace one web/mobile-backed request without assuming the client is trusted
 4. **Threat modeling with four questions** — what are we building, what can go wrong, what will we do, did we do enough; lightweight misuse cases

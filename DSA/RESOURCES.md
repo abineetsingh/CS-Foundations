@@ -21,9 +21,6 @@
 
 - [r/leetcode](https://reddit.com/r/leetcode)
   Large, active community of interview preppers, including AI-lab candidates. Use for: interview experience reports (search "Anthropic interview", "OpenAI interview"), plateau troubleshooting, study-plan critique.
-- NeetCode Discord (linked from [neetcode.io](https://neetcode.io))
-  Active help channel per topic. Use for: getting a human to review a solution when stuck.
-
 ## Gaps
 
 - **AI-lab-specific interview intel**: no vetted source yet on the exact format of OpenAI/Anthropic coding screens (they skew practical/"build-a-thing" vs. pure LeetCode). Research this ~2–3 weeks before first application; r/leetcode experience threads are the current best lead.

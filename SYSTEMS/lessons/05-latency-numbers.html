@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 05 — Latency Numbers Every Architect Knows</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .lat-bar { display: flex; align-items: center; gap: 0.7rem; margin: 0.35rem 0; }
+  .lat-bar .lat-label { width: 15rem; font-size: 0.85rem; flex-shrink: 0; }
+  .lat-bar .bar { height: 0.9rem; background: var(--accent); border-radius: 3px; min-width: 2px; }
+  .lat-bar .lat-val { font-family: "SF Mono", Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
+  .lat-chart { border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.2rem; background: #fdfdf4; margin: 1.5rem 0; }
+  .lat-chart .scale-note { font-size: 0.8rem; font-style: italic; color: var(--muted); margin: 0.2rem 0 0.8rem; }
+</style>
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 05 · ~20 minutes · Systems Design</span>
+  <h1>Latency Numbers Every Architect Knows</h1>
+  <p class="lede">One skill, learned today: estimate how long a request takes by counting its hops — using a dozen numbers you'll keep for life.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Architects disagree about many things, but never about physics. These rough numbers — popularized by Jeff Dean of Google — are the shared arithmetic behind every design tradeoff you'll ever argue: why caches exist, why round trips are the enemy, why "just call the database in a loop" melts systems. Interviewers expect you to reach for them unprompted.</p>
+  </div>
+
+  <h2>The numbers</h2>
+  <p>Orders of magnitude, not precision — memorize the <em>ratios</em> <a href="https://gist.github.com/jboner/2841832">[Jeff Dean's numbers, Bonér's gist]</a> <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html">[interactive version by year]</a>:</p>
+  <div class="lat-chart">
+    <p class="scale-note">Bar lengths are on a log scale — each big step rightward is ~10× slower.</p>
+    <div class="lat-bar"><span class="lat-label">L1 cache reference</span><div class="bar" style="width:2%"></div><span class="lat-val">~1 ns</span></div>
+    <div class="lat-bar"><span class="lat-label">Main memory (RAM) reference</span><div class="bar" style="width:14%"></div><span class="lat-val">~100 ns</span></div>
+    <div class="lat-bar"><span class="lat-label">Read 1 MB sequentially from RAM</span><div class="bar" style="width:24%"></div><span class="lat-val">~10 µs</span></div>
+    <div class="lat-bar"><span class="lat-label">SSD random read</span><div class="bar" style="width:30%"></div><span class="lat-val">~100 µs</span></div>
+    <div class="lat-bar"><span class="lat-label">Round trip inside one datacenter</span><div class="bar" style="width:36%"></div><span class="lat-val">~0.5 ms</span></div>
+    <div class="lat-bar"><span class="lat-label">Read 1 MB from SSD</span><div class="bar" style="width:38%"></div><span class="lat-val">~1 ms</span></div>
+    <div class="lat-bar"><span class="lat-label">Spinning-disk seek</span><div class="bar" style="width:44%"></div><span class="lat-val">~10 ms</span></div>
+    <div class="lat-bar"><span class="lat-label">Round trip, same continent</span><div class="bar" style="width:50%"></div><span class="lat-val">~30–70 ms</span></div>
+    <div class="lat-bar"><span class="lat-label">Round trip, opposite side of Earth</span><div class="bar" style="width:56%"></div><span class="lat-val">~150–300 ms</span></div>
+  </div>
+  <p>Three anchors worth saying out loud: <strong>memory is nanoseconds, SSDs are microseconds, networks are milliseconds.</strong> Each tier is roughly a thousand times slower than the one above. A cross-continent round trip is ~a million times slower than a RAM read — that ratio, scaled to human time, is "1 second vs 11 days."</p>
+
+  <h2>The skill: count the round trips</h2>
+  <p>A request's latency is dominated by its slowest hops — and hops <em>add up when sequential</em>. Estimate by walking the path:</p>
+  <pre><code>Client (San Francisco) → API (Virginia datacenter), then 3 DB queries run one-by-one:
+
+  cross-country round trip           ~70 ms
+  DB query 1 (same datacenter)       ~0.5 ms + ~1 ms work ≈ 1.5 ms
+  DB query 2                          ≈ 1.5 ms
+  DB query 3                          ≈ 1.5 ms
+  ─────────────────────────────────────────────
+  total                              ≈ 75 ms   ← the WAN hop is almost everything</code></pre>
+  <p>Two design moves fall straight out of the arithmetic:</p>
+  <ul>
+    <li><strong>Cut round trips.</strong> 100 sequential DB queries at ~1.5 ms each = 150 ms of pure chatter — the classic <em>N+1 query problem</em>. One query returning 100 rows: ~2 ms. Batch, join, or fetch in parallel.</li>
+    <li><strong>Move data closer.</strong> Can't shorten the speed of light — so put a copy near the reader. That's caching (lesson 09) and CDNs (10), justified entirely by this table.</li>
+  </ul>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>The same hierarchy governs GPUs: on-chip SRAM is ~100× faster than the GPU's HBM memory, which dwarfs PCIe and network links to other GPUs. LLM inference is usually <em>memory-bandwidth-bound</em> — the KV-cache exists to avoid recomputing, and techniques like FlashAttention exist to avoid re-reading slow memory. Same physics, different box.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <p>Ratios from memory — that's the whole game.</p>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html">Interactive latency numbers</a> (5 min of sliding the year back and forth — notice what improved and what physics froze). Keep the <a href="../reference/latency-numbers.html">course reference card</a> nearby; it's printable.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="04-state-and-the-database.html">← 04 State &amp; the database</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="06-capacity-estimation.html">06 Back-of-envelope capacity estimation →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  { prompt: "Rank fastest → slowest:",
+    options: [
+      "RAM read, SSD read, datacenter RTT, WAN RTT",
+      "RAM read, datacenter RTT, SSD read, WAN RTT",
+      "SSD read, RAM read, datacenter RTT, WAN RTT",
+      "RAM read, SSD read, WAN RTT, datacenter RTT",
+    ],
+    answer: 0,
+    explain: "Nanoseconds (RAM) → microseconds (SSD) → ~0.5 ms (same datacenter) → tens of ms (WAN). Memory, disk, network — each ~1000× the last." },
+  { prompt: "A handler makes 50 sequential DB calls (~1.5 ms each) instead of one batched query. Roughly how much latency does that add?",
+    options: [
+      "about 75 ms of round trips",
+      "about 7.5 ms of round trips",
+      "about 750 ms of round trips",
+      "almost none, queries are microseconds",
+    ],
+    answer: 0,
+    explain: "50 × 1.5 ms = 75 ms of chatter — the N+1 problem. One query returning 50 rows costs ~2 ms. Round trips, not data size, dominate." },
+  { prompt: "Caching exists primarily because…",
+    options: [
+      "nearby copies dodge slow round trips",
+      "databases cannot handle repeated queries",
+      "memory is cheaper than disk space",
+      "browsers require it in the spec",
+    ],
+    answer: 0,
+    explain: "The table is the argument: a RAM/nearby read is thousands of times cheaper than a network hop to the source. Move data closer to the reader." },
+  { prompt: "Spaced review — Lesson 04: which failure does moving state to notes.db NOT protect against?",
+    options: [
+      "the disk itself being destroyed",
+      "the API process being killed",
+      "a deploy restarting the server",
+      "the machine rebooting after updates",
+    ],
+    answer: 0,
+    explain: "SQLite survives process death — but the file lives on one disk. Losing the disk loses everything. The fix is replication: lesson 15." },
+  { prompt: "Spaced review — Lesson 02: a client hammering your API gets slowed down. Which status code says 'too many requests'?",
+    options: [
+      "429, back off and retry later",
+      "409, the request conflicts with state",
+      "403, authenticated but not allowed",
+      "503, the server is overloaded",
+    ],
+    answer: 0,
+    explain: "429 Too Many Requests is the rate-limit signal (client-side family). 503 is the server admitting IT'S the one in trouble." },
+]);
+</script>
+</body>
+</html>

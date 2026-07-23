@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 25 — Tries</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 25 · Phase 2 · ~25 minutes</span>
+  <h1>Tries: Trees of Prefixes</h1>
+  <p class="lede">Today's skill: build a trie from scratch and know exactly when it beats a hash set — prefix queries.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>The trie is a specialist: for exact lookup it loses to the hash map, but for <em>"anything starting with…"</em> it's unbeatable. Knowing precisely where each structure wins is the judgment interviews test. Bonus relevance: tokenizers — the front door of every LLM — lean on exactly this structure.</p>
+  </div>
+
+  <h2>The structure: paths spell words</h2>
+  <p>Each node's children are letters; a path from the root spells a prefix. Words sharing prefixes share paths — <code>car</code>, <code>cart</code>, and <code>cat</code> overlap for free:</p>
+  <pre><code>root ── c ── a ─┬─ r (✓) ── t (✓)      (✓) = "a word ends here"
+                └─ t (✓)
+words: car, cart, cat — 4 nodes for 10 letters</code></pre>
+  <p>Two ingredients per node: children (a dict — Lesson 05) and an end-of-word flag. Note what the flag does: <code>car</code> is both a word AND a prefix of <code>cart</code> — nodes alone can't distinguish "word" from "waypoint."</p>
+
+  <h2>The implementation (worth memorizing — it's tiny)</h2>
+  <pre><code>class TrieNode:
+    def __init__(self):
+        self.children = {}          # char → TrieNode
+        self.is_word = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):                    # O(L), L = len(word)
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]           # walk/create the path
+        node.is_word = True
+
+    def search(self, word):                    # O(L) — exact word
+        node = self._walk(word)
+        return node is not None and node.is_word
+
+    def starts_with(self, prefix):             # O(L) — the superpower
+        return self._walk(prefix) is not None
+
+    def _walk(self, s):
+        node = self.root
+        for ch in s:
+            if ch not in node.children:
+                return None
+            node = node.children[ch]
+        return node</code></pre>
+  <p>Every operation is <strong>O(L)</strong> — the word's length — independent of how many words are stored. A dictionary of a million words: still L steps.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-trie"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const t = (id, v, ch) => ({ id: id, v: v, children: ch || [] });
+    const root = t("root", "·", [t("c", "c", [t("ca", "a", [t("car", "r", [t("cart", "t")]), t("cat", "t")])])]);
+    const view = Viz.tree({ root: root, gapX: 52, gapY: 50 });
+    const fr = [
+      { dim: ["c", "ca", "car", "cart", "cat"],
+        note: "An empty trie (&#183; is the root). Insert car, cart, cat — watch shared prefixes share structure." },
+      { dim: ["ca", "car", "cart", "cat"], hl: { c: "hl" },
+        note: 'insert("car"): create/walk c — step 1 of 3.' },
+      { dim: ["car", "cart", "cat"], hl: { c: "hl", ca: "hl" },
+        note: "…walk a — step 2 of 3. Each step is one dict hop." },
+      { dim: ["cart", "cat"], hl: { car: "good" }, badge: { car: "end" },
+        note: '…create r and mark is_word. "car" stored in exactly L = 3 steps — a million other words would not slow this down.' },
+      { dim: ["cat"], hl: { c: "hl", ca: "hl", car: "hl", cart: "good" }, badge: { car: "end", cart: "end" },
+        note: 'insert("cart"): c, a, r ALREADY EXIST — reuse the entire path, create only t. Shared prefixes are free. (And "car" keeps its end-flag: word AND waypoint.)' },
+      { hl: { c: "hl", ca: "hl", cat: "good" }, badge: { car: "end", cart: "end", cat: "end" },
+        note: 'insert("cat"): reuse c&#8211;a, branch with t. Three words, ten letters, six nodes.' },
+      { hl: { c: "good", ca: "good" }, badge: { car: "end", cart: "end", cat: "end" },
+        note: 'starts_with("ca"): walk c, a — the node exists &#8594; yes, in 2 steps. A hash set would have to scan EVERY stored word.' },
+      { hl: { c: "hl", ca: "hl", car: "good", cat: "good" }, badge: { car: "end", cart: "end", cat: "end" },
+        note: 'search("ca."): the wildcard makes BOTH children live continuations — deterministic walking dies, DFS branches into each. Lesson 26 arriving early.' }
+    ];
+    Viz.player("viz-trie", { caption: "building a trie: car, cart, cat — prefixes share paths", view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>Trie vs. hash set: the honest comparison</h2>
+  <table>
+    <tr><th>Operation</th><th>Hash set</th><th>Trie</th></tr>
+    <tr><td>exact lookup</td><td><code>O(L)</code>* — simpler, faster constants</td><td><code>O(L)</code></td></tr>
+    <tr><td>"any word with prefix p?"</td><td><code>O(n·L)</code> — scan everything</td><td><code>O(L)</code> — walk p, done</td></tr>
+    <tr><td>list all words with prefix p</td><td><code>O(n·L)</code></td><td>walk p + DFS below (output-sized)</td></tr>
+    <tr><td>wildcard matching (c_t)</td><td>poor</td><td>DFS branching at the wildcard</td></tr>
+    <tr><td>space</td><td>compact</td><td>heavy (a node per char) — but shared prefixes compress</td></tr>
+  </table>
+  <p style="font-size: 0.85rem; color: var(--muted);">*hashing a string reads all L characters — hash lookups on strings were never truly O(1).</p>
+  <p>Decision rule: <strong>the word "prefix" (or autocomplete, or wildcard) in a problem statement → trie.</strong> Plain membership → hash set, always. The classic combo problem, "Word Search II" (find dictionary words in a letter grid), uses a trie to prune a grid DFS — Lessons 25 + 27 + 29 stacked; it will be within reach in three lessons.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Fast BPE tokenizers store their merge vocabulary so that the <em>longest matching token</em> at each text position is found by walking a trie — that's how "unbelievable" becomes <code>un + believ + able</code> in microseconds. Constrained decoding (forcing an LLM's output to match a grammar or JSON schema) walks an automaton/trie of valid continuations while masking logits — a trie deciding what the model may say next.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Tries section</a>, "Implement Trie" video.</li>
+    <li>Problems: "Implement Trie (Prefix Tree)" (from memory!), "Design Add and Search Words" (the wildcard one).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Implement Trie without looking, tomorrow. It's short enough to fully memorize and interviews ask it verbatim. Stuck on the wildcard variant's DFS? That's Lesson 26's material arriving early — ask Claude Code for a preview.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="24-two-heaps-and-k-way-merge.html">← 24 Two-heap &amp; K-way-merge patterns</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="26-backtracking-i.html">26 Backtracking I →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "A trie's lookup is O(L) regardless of the number of stored words because…",
+    options: [
+      "the path walked depends only on the query's characters — other words live on other paths",
+      "tries rebalance themselves like AVL trees",
+      "the children dicts shrink as words are added",
+      "L is always smaller than log n"
+    ],
+    answer: 0,
+    explain: "One child-dict hop per character of the QUERY. A million stored words deepen nothing along your path — they branch elsewhere."
+  },
+  {
+    prompt: "Why does each node need an is_word flag?",
+    options: [
+      "a word can be a prefix of another — 'car' must be distinguishable from the waypoint inside 'cart'",
+      "to prevent duplicate insertions of the same word",
+      "leaves cannot store characters without it",
+      "it marks nodes for garbage collection"
+    ],
+    answer: 0,
+    explain: "Reaching a node proves the PREFIX exists; the flag records that a word ENDS there. search checks the flag; starts_with doesn't — that's their entire difference."
+  },
+  {
+    prompt: "'Return all products whose names start with the user's typed text' — best structure and why?",
+    options: [
+      "trie — walk the prefix in O(L), then enumerate the subtree below",
+      "hash set — check each product name in O(1)",
+      "sorted array — binary search has the same asymptotics with less code",
+      "heap — keep products ordered by name length"
+    ],
+    answer: 0,
+    explain: "Autocomplete IS the trie use case. (Honorable mention: a sorted array + bisect finds the prefix RANGE in O(log n) — a legitimate alternative worth naming; the trie wins when inserts are frequent.)"
+  },
+  {
+    code: "def search(self, word):   # supports '.' as any letter\n    def dfs(node, i):\n        if i == len(word):\n            return node.is_word\n        if word[i] == '.':\n            return any(dfs(child, i + 1) for child in node.children.values())\n        ...",
+    prompt: "The '.' wildcard forces DFS because…",
+    options: [
+      "a '.' matches every child — multiple paths must be explored, not one",
+      "dots are stored as special nodes in the trie",
+      "recursion is required for all trie operations",
+      "any() cannot be used in iterative code"
+    ],
+    answer: 0,
+    explain: "Deterministic walking dies at a wildcard: every child is a live possibility. Branch into each (worst case exponential in dots) — your first taste of the search trees coming in Lesson 26."
+  },
+  {
+    prompt: "Review from 24: merging k sorted streams uses a heap holding…",
+    options: [
+      "exactly one element per stream — the current fronts",
+      "all N elements across every stream",
+      "the k smallest elements seen so far",
+      "one element per distinct value"
+    ],
+    answer: 0,
+    explain: "The next output is the min of the k fronts; popping a front admits its successor from the same stream. O(N log k), heap size k."
+  }
+]);
+</script>
+</body>
+</html>

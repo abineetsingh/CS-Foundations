@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 03 — Build a Real API</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 03 · ~30 minutes · Systems Design · hands-on</span>
+  <h1>Build a Real API</h1>
+  <p class="lede">One skill, learned today: stand up a working HTTP API in Python and drive it with curl — the notes API from lesson 02, made real.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>The mission says <em>build</em>, not just diagram. This little service is the seed of the capstone: over the coming lessons it gains a database (04), a container (32), and metrics (35). Every architecture concept lands harder when it happens to <em>your</em> service.</p>
+  </div>
+
+  <h2>Setup (once)</h2>
+  <p><a href="https://fastapi.tiangolo.com/">FastAPI</a> is the modern standard for Python APIs; <a href="https://www.uvicorn.org/">uvicorn</a> is the server program that listens on the <a href="../reference/glossary.html#port">port</a> and hands requests to your code. Use a virtual environment so nothing pollutes your system Python:</p>
+  <pre><code>mkdir -p ~/notes-api &amp;&amp; cd ~/notes-api
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install "fastapi[standard]"</code></pre>
+
+  <h2>The service</h2>
+  <p>Save as <code>main.py</code>. Read it before you run it — every line maps to something from lesson <a href="02-http-and-api-design.html">02</a>:</p>
+  <pre><code>from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+app = FastAPI()
+
+notes: dict[int, dict] = {}          # in-memory "database" (this is a flaw. wait for it.)
+next_id = 1
+
+class NoteIn(BaseModel):             # the request-body contract
+    text: str
+
+@app.get("/notes")
+def list_notes(limit: int = 20):
+    return list(notes.values())[:limit]
+
+@app.post("/notes", status_code=201)
+def create_note(note: NoteIn):
+    global next_id
+    saved = {"id": next_id, "text": note.text}
+    notes[next_id] = saved
+    next_id += 1
+    return saved
+
+@app.get("/notes/{note_id}")
+def get_note(note_id: int):
+    if note_id not in notes:
+        raise HTTPException(status_code=404, detail="note not found")
+    return notes[note_id]
+
+@app.delete("/notes/{note_id}", status_code=204)
+def delete_note(note_id: int):
+    notes.pop(note_id, None)         # idempotent: deleting twice is fine
+</code></pre>
+  <p>Run it:</p>
+  <pre><code>fastapi dev main.py                  # serves on http://127.0.0.1:8000</code></pre>
+
+  <h2>Where your code sits</h2>
+  <p>You just built the inside of the "App server" box from lesson 01. Trace where each piece lives:</p>
+  <div id="flow"></div>
+
+  <h2>Drive it with curl</h2>
+  <p>Second terminal. Predict each status code <em>before</em> you hit enter:</p>
+  <pre><code>curl -i -X POST localhost:8000/notes -H "Content-Type: application/json" -d '{"text":"first note"}'
+curl -i localhost:8000/notes/1        # expect 200
+curl -i localhost:8000/notes/99       # expect 404
+curl -i -X POST localhost:8000/notes -H "Content-Type: application/json" -d '{"wrong":"field"}'
+curl -i -X DELETE localhost:8000/notes/1   # expect 204
+curl -i -X DELETE localhost:8000/notes/1   # again! idempotent, still 204</code></pre>
+  <p>That fourth call returns <code>422</code> — FastAPI validated the body against <code>NoteIn</code> and rejected it for you (422 is FastAPI's more specific flavor of 400-family "your request is wrong"). Now open <a href="http://127.0.0.1:8000/docs">localhost:8000/docs</a> in a browser: FastAPI generated interactive API documentation from your code — a small taste of why API <em>contracts</em> matter <a href="https://fastapi.tiangolo.com/tutorial/first-steps/">[FastAPI tutorial]</a>.</p>
+
+  <div class="note">
+    <span class="callout-label">Now break it</span>
+    <p>Create two notes. Stop the server (<code>Ctrl-C</code>). Start it again. <code>curl localhost:8000/notes</code> — <strong>empty.</strong> Your data lived in a Python dict, i.e. in process memory, and died with the process. Every crash, deploy, or restart wipes it — and a second server (lesson 07) would have a <em>different</em> dict. This exact flaw is why databases exist, and it's what lesson 04 fixes.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: the official <a href="https://fastapi.tiangolo.com/tutorial/">FastAPI tutorial</a>, sections "First Steps" through "Path Parameters" (20 min) — the best-written docs in the Python ecosystem.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="02-http-and-api-design.html">← 02 HTTP &amp; API design</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="04-state-and-the-database.html">04 State &amp; the database →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "curl", sub: "the client" },
+    { id: "uvicorn", label: "uvicorn", sub: "listener :8000" },
+    { id: "app", label: "Your code", sub: "main.py handlers" },
+    { id: "dict", label: "notes dict", sub: "process memory" },
+  ],
+  steps: [
+    { from: "client", to: "uvicorn", packet: "POST /notes",
+      caption: "curl sends the request to port 8000. uvicorn is the program actually listening on the port — the 'server' in the strictest sense." },
+    { from: "uvicorn", to: "app", packet: "parsed request",
+      caption: "uvicorn parses raw HTTP bytes and hands FastAPI a clean request object. FastAPI routes it: POST /notes → create_note()." },
+    { at: "app",
+      caption: "Your handler runs. Pydantic has already validated the body against NoteIn — invalid JSON never even reaches your logic (that's the 422)." },
+    { from: "app", to: "dict", packet: "notes[1] = {…}",
+      caption: "The handler stores the note in a Python dict. Fast — a hash-map insert, O(1) as you know from DSA — but it lives in process memory." },
+    { from: "app", to: "client", packet: "201 + JSON",
+      caption: "Response flows back out through uvicorn: 201 Created with the saved note. Total time: single-digit milliseconds, all on localhost." },
+    { at: "dict",
+      caption: "The flaw: kill the process and this box vanishes. Memory is not storage. Lesson 04 replaces this box with a real database." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "In this stack, which program is listening on port 8000?",
+    options: [
+      "uvicorn, which hands requests to FastAPI",
+      "FastAPI, which hands requests to uvicorn",
+      "the notes dict, inside process memory",
+      "curl, which connects from the terminal",
+    ],
+    answer: 0,
+    explain: "uvicorn owns the port and speaks raw HTTP; FastAPI is the framework it hands parsed requests to. Listener and framework are separate jobs." },
+  { prompt: "POST with a body {\"wrong\": \"field\"} returned 422. Who rejected it?",
+    options: [
+      "validation, before your handler ran",
+      "your handler, using an if-statement",
+      "the client, before it was sent",
+      "the kernel, during the TCP handshake",
+    ],
+    answer: 0,
+    explain: "Pydantic validated the body against the NoteIn model and rejected it before create_note() ever executed. Push validation to the boundary." },
+  { prompt: "Why did restarting the server erase all notes?",
+    options: [
+      "the data lived in process memory",
+      "the data lived on the disk",
+      "uvicorn clears databases on shutdown",
+      "curl deletes resources it created",
+    ],
+    answer: 0,
+    explain: "A dict is process memory; the process died, the memory went with it. Durable state needs a database — next lesson." },
+  { prompt: "Spaced review — Lesson 02: DELETE /notes/1 twice in a row is fine because DELETE is…",
+    options: [
+      "idempotent, same end state repeated",
+      "safe, it never changes anything",
+      "cached, the second never sends",
+      "atomic, both calls merge together",
+    ],
+    answer: 0,
+    explain: "Idempotent: repeat it and the end state is unchanged (note gone). It's not 'safe' — the first call did change state; GET is the safe one." },
+  { prompt: "Spaced review — Lesson 01: in this lesson's setup, 'localhost' means the request…",
+    options: [
+      "never leaves your own machine",
+      "resolves through public DNS servers",
+      "travels through your home router",
+      "requires HTTPS to be accepted",
+    ],
+    answer: 0,
+    explain: "localhost (127.0.0.1) is this machine — client and server are two processes on one computer, no DNS, no network." },
+]);
+</script>
+</body>
+</html>

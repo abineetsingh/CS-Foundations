@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 38 — Cloud Building Blocks</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 38 · ~20 minutes · Systems Design · Phase 4</span>
+  <h1>Cloud Building Blocks</h1>
+  <p class="lede">One skill, learned today: translate every concept you've built into the AWS/GCP names it wears in production — plus the two genuinely new ideas the cloud adds: regions and serverless.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Job postings, interviews, and engineering blogs speak vendor: "we moved it to SQS," "an EC2 fleet behind an ALB." The concepts are all yours already — this lesson is a phrasebook, not new grammar. Concepts over vendor trivia, per your mission's own out-of-scope list.</p>
+  </div>
+
+  <h2>The phrasebook</h2>
+  <table>
+    <tr><th>You learned</th><th>AWS</th><th>GCP</th></tr>
+    <tr><td>Rentable machines / VMs (07)</td><td>EC2</td><td>Compute Engine</td></tr>
+    <tr><td>Load balancer (08)</td><td>ALB (L7) / NLB (L4)</td><td>Cloud Load Balancing</td></tr>
+    <tr><td>Managed relational DB + replicas (12–15)</td><td>RDS / Aurora</td><td>Cloud SQL / AlloyDB</td></tr>
+    <tr><td>Key-value at scale, consistent hashing (16–17)</td><td>DynamoDB</td><td>Bigtable / Firestore</td></tr>
+    <tr><td>Distributed cache (09)</td><td>ElastiCache (Redis)</td><td>Memorystore</td></tr>
+    <tr><td>Object storage (19)</td><td>S3</td><td>Cloud Storage (GCS)</td></tr>
+    <tr><td>CDN (10)</td><td>CloudFront</td><td>Cloud CDN</td></tr>
+    <tr><td>Message queue + DLQ (23)</td><td>SQS</td><td>Cloud Tasks / Pub/Sub (pull)</td></tr>
+    <tr><td>Event log / streams (24)</td><td>Kinesis / MSK (Kafka)</td><td>Pub/Sub</td></tr>
+    <tr><td>Managed Kubernetes (33)</td><td>EKS</td><td>GKE</td></tr>
+    <tr><td>Secrets manager (37)</td><td>Secrets Manager / KMS</td><td>Secret Manager / Cloud KMS</td></tr>
+    <tr><td>Metrics/logs/traces (35)</td><td>CloudWatch / X-Ray</td><td>Cloud Monitoring / Trace</td></tr>
+  </table>
+  <p>The deeper pattern: <strong>managed services sell you the ops, not the concept.</strong> RDS is Postgres where failover (15/26), backups, and patching are someone else's pager. You trade money and some control for operational burden — usually the right trade until you're enormous. In interviews, either layer is acceptable; naming both ("a queue — SQS, say") reads as experience.</p>
+
+  <h2>The two genuinely new ideas</h2>
+  <p><strong>1. Regions &amp; availability zones.</strong> A <a href="../reference/glossary.html#region">region</a> is a geographic cluster of datacenters; an <a href="../reference/glossary.html#availability-zone">availability zone</a> (AZ) is one independent datacenter within it (own power, cooling, network). The design defaults that follow from your own latency table (05): spread replicas across <em>AZs</em> for free-ish fault tolerance (~1–2 ms apart — a whole-datacenter failure becomes a non-event); go multi-<em>region</em> only for geographic latency or disaster recovery, because 50–150 ms between regions makes synchronous replication painful — multi-region is where all of phase 3's hard tradeoffs (18's PACELC, multi-leader conflicts) come home to roost.</p>
+  <p><strong>2. Serverless.</strong> Functions-as-a-service (Lambda / Cloud Functions): upload a handler; the platform runs an instance <em>per request</em>, scaling zero-to-thousands automatically, billed per invocation. The catches you should recite: <strong>cold starts</strong> (a fresh instance pays init latency — the p99 tax, 35), statelessness is <em>mandatory</em> (07 enforced by the platform), and per-invocation pricing crosses over managed fleets at sustained high volume. Sweet spot: spiky, event-driven glue — queue consumers (23), webhooks, cron. Your API fleet at steady 10k QPS: containers. <a href="https://docs.aws.amazon.com/lambda/latest/dg/concepts-basics.html">[AWS: Lambda concepts]</a></p>
+  <div id="flow"></div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>AI-lab job postings are written in this phrasebook — "S3-based data lake," "SQS-fed inference queues," "EKS with GPU node pools." And the GPU cloud adds one vendor-y wrinkle worth knowing: capacity reservations. GPUs are scarce enough that "just autoscale" fails; labs reserve fleets years ahead — a supply-chain constraint your envelope math (06) never had to price in before.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: the <a href="https://aws.amazon.com/builders-library/">AWS Builders' Library</a> index (10 min browse) — you've already read two of its papers (09, 22); skim the titles and notice how many you could now summarize unread. That feeling is the phase-4 milestone approaching.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="37-security-fundamentals.html">← 37 Security fundamentals</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="39-incident-thinking.html">39 Incident thinking →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "r53", label: "DNS", sub: "Route 53" },
+    { id: "cf", label: "CDN", sub: "CloudFront" },
+    { id: "alb", label: "L7 LB", sub: "ALB" },
+    { id: "az1", label: "AZ-1", sub: "app + replica", row: 1 },
+    { id: "az2", label: "AZ-2", sub: "app + primary", row: 1 },
+    { id: "az3", label: "AZ-3", sub: "app + replica", row: 1 },
+  ],
+  links: [["r53","cf"], ["cf","alb"], ["alb","az1"], ["alb","az2"], ["alb","az3"]],
+  steps: [
+    { from: "r53", to: "cf", packet: "resolve → edge",
+      caption: "Your v1 architecture (11), now in vendor dress: Route 53 (DNS, 01) steers users to the nearest CloudFront edge (CDN, 10)." },
+    { from: "cf", to: "alb", packet: "API pass-through",
+      caption: "Static content dies at the edge; API calls continue to the ALB — an L7 load balancer (08) with health checks, TLS termination (37), spanning all three AZs." },
+    { at: ["az1", "az2", "az3"],
+      caption: "The fleet spreads across three availability zones — independent datacenters ~1 ms apart. Stateless app containers (07/32) in each; RDS primary in AZ-2 with replicas in 1 and 3 (15). ElastiCache and SQS complete the picture." },
+    { at: "az2",
+      caption: "💥 AZ-2 loses power — an entire datacenter gone. The ALB's health checks drop it in seconds (08); RDS promotes a replica in AZ-1 (failover, 15/26 — managed, so the voting is Amazon's pager, not yours)." },
+    { at: ["az1", "az3"],
+      caption: "Traffic flows on through two AZs at reduced headroom. Users noticed ~30 seconds of elevated latency. This is why multi-AZ is the DEFAULT posture — datacenter death, downgraded to a metric blip." },
+    { at: ["r53"],
+      caption: "Multi-REGION would replicate this whole picture to Frankfurt — for European latency (05) or region-scale disaster. But 80 ms between regions revives every phase-3 tradeoff (async lag, conflict resolution). AZs are cheap insurance; regions are a project." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "'We put the jobs on SQS with a DLQ' translates to…",
+    options: [
+      "a managed queue with dead-lettering",
+      "an event log with consumer offsets",
+      "a cron service with retry policies",
+      "a cache with expiring job entries",
+    ],
+    answer: 0,
+    explain: "SQS = lesson 23 as a product: at-least-once delivery, visibility timeouts, dead-letter queues. (The offset-log shape — 24 — is Kinesis/Kafka territory.)" },
+  { prompt: "Replicas across three AZs (not one) primarily buys…",
+    options: [
+      "surviving a whole datacenter's failure",
+      "lower latency for distant users",
+      "cheaper storage through competition",
+      "stronger consistency between the replicas",
+    ],
+    answer: 0,
+    explain: "AZs are independent failure domains ~1 ms apart — fault tolerance nearly free. Geographic latency needs multi-REGION, a far bigger commitment (and consistency gets harder, not stronger)." },
+  { prompt: "Which workload is serverless's sweet spot?",
+    options: [
+      "spiky webhook processing from queues",
+      "a steady ten-thousand-QPS API",
+      "a stateful WebSocket gateway tier",
+      "the primary Postgres database",
+    ],
+    answer: 0,
+    explain: "Zero-to-thousands scaling and per-invocation billing shine on bursty, event-driven glue. Steady high volume prices worse than fleets; sockets and databases are state — the platform forbids or fights it." },
+  { prompt: "A Lambda cold start shows up on your dashboards as…",
+    options: [
+      "p99 latency spikes on scale-up",
+      "elevated error rates during deploys",
+      "queue depth growing without bound",
+      "reduced availability in one zone",
+    ],
+    answer: 0,
+    explain: "First-invocation instances pay init cost — the unlucky tail requests eat it. Median looks great; the p99 tells the truth. Lesson 35's percentile discipline, cashing in again." },
+  { prompt: "Spaced review — Lesson 15: 'RDS Multi-AZ automatic failover' is which mechanism, managed?",
+    options: [
+      "follower promotion when the leader dies",
+      "consistent-hash resharding of the data",
+      "cache invalidation across the zones",
+      "read-your-writes routing for sessions",
+    ],
+    answer: 0,
+    explain: "Leader–follower replication with health-triggered promotion (and consensus — 26 — refereeing it), sold as a checkbox. Managed services sell the ops; the concept remains yours." },
+]);
+</script>
+</body>
+</html>

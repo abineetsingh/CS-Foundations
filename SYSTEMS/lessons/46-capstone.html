@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 46 — Capstone: Build It, Then Defend It</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 46 · multi-session · Systems Design · capstone</span>
+  <h1>Capstone: Build It, Then Defend It</h1>
+  <p class="lede">The mission's success criteria, cashed in: ship a production-shaped service with your own hands, then survive a mock-interview marathon about it and its cousins.</p>
+
+  <div class="mission">
+    <span class="callout-label">The finish line, verbatim</span>
+    <p>From MISSION.md: <em>"Build and run a small production-shaped service in Python: API + database + cache + queue, containerized, with basic observability"</em> and <em>"whiteboard a standard system design question in ~45 minutes."</em> This lesson is both, scheduled. Expect 2–4 sessions for the build, one for the marathon.</p>
+  </div>
+
+  <h2>Part 1 — The build: "Pastebin-with-a-pulse" (2–4 sessions)</h2>
+  <p>A paste-sharing service — chosen because it exercises every layer without any single one exploding in scope. You've built every piece in isolation; the capstone is the <em>composition</em>. Requirements, as a production ticket:</p>
+  <table>
+    <tr><th>#</th><th>Requirement</th><th>Proves (lessons)</th></tr>
+    <tr><td>1</td><td><code>POST /pastes</code> (auth'd, rate-limited), <code>GET /{code}</code> — counter→base62 codes, 404/409/429 handled properly</td><td>02–04, 28, 41</td></tr>
+    <tr><td>2</td><td>Postgres (or SQLite) as truth; Redis cache-aside on reads with TTL + delete-on-write; measure and log your hit ratio</td><td>09, 10, 12–13</td></tr>
+    <tr><td>3</td><td>View counting OFF the read path: events to a queue (Redis list is fine), an idempotent worker aggregates — kill the worker mid-job and prove nothing is lost or double-counted</td><td>22–25</td></tr>
+    <tr><td>4</td><td><code>docker compose up</code> brings up API + DB + Redis + worker; API and worker as separate containers from one image</td><td>32</td></tr>
+    <tr><td>5</td><td><code>/metrics</code> with request counts by status and p50/p95/p99; structured JSON logs; a written SLO ("99.9% of reads &lt; 100 ms") and a load test (<code>hey</code> or a Python loop) proving or breaking it</td><td>35</td></tr>
+    <tr><td>6</td><td>A <code>DESIGN.md</code>: the diagram, the envelope math for a pretend 10 M DAU, every tradeoff stated in "X because Y, alternative costs Z" form — written like a document a team would review</td><td>06, 40, everything</td></tr>
+  </table>
+  <p><strong>Stretch goals</strong> (each one session): SSE endpoint streaming live view-counts (29) · a second API container behind an nginx load balancer, proving statelessness by killing one under load (07–08) · chaos drill: kill Redis under load, watch the DB take the storm, write the postmortem (36, 39).</p>
+  <p>Work with your teacher as a <em>colleague</em> on this — design reviews, debugging, code review — but type it yourself. The mission said build; typing is where the knowledge sets.</p>
+
+  <h2>Part 2 — The mock marathon (1 session)</h2>
+  <p>Ask your teacher to run, on separate days: <strong>(1)</strong> a full 45-minute mock on a question you haven't drilled (job scheduler, Ticketmaster, Dropbox — with real pushback and a written scorecard against the 40 stages); <strong>(2)</strong> a 45-minute <em>defense of your capstone</em> — "why this queue?", "what breaks at 100×?", "your cache dies — walk me through the incident" (defending real decisions is the closest simulation of senior loops that exists); <strong>(3)</strong> an AI-systems round from 44–45 territory. Score honestly against the runbook; a miss found here costs nothing.</p>
+
+  <h2>After the capstone</h2>
+  <ul>
+    <li><strong>Record it:</strong> have your teacher write learning records for what the build exposed — they steer any future deepening (Gossip Glomers, DDIA cover-to-cover, multi-region design).</li>
+    <li><strong>Keep two habits:</strong> one postmortem per week (39's ritual — the danluu list is deep), and one drill re-run per month with fresh prompts, spaced (your DSA course taught you why spacing is the whole game).</li>
+    <li><strong>Ship it somewhere real</strong> (Fly.io/Railway-class host — check RESOURCES.md's gap note): a deployed URL turns the capstone from exercise into evidence. Recruiters click links.</li>
+  </ul>
+
+  <div class="mission">
+    <span class="callout-label">Course complete</span>
+    <p>Forty-six lessons ago, a server was a mystery box. Now you can design one, size it, scale it, break it, ship it, watch it, and defend every decision out loud — and the AI-systems frontier reads as familiar architecture rather than magic. The interview is a checkpoint; this capability was the actual goal. Go take both.</p>
+  </div>
+
+  <h2>Final check</h2>
+  <div id="quiz"></div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="45-ai-systems-agents-and-rag.html">← 45 AI systems II: agent &amp; RAG infrastructure</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a href="../00-table_of_contents.html">Course complete</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  { prompt: "Requirement 3's kill-the-worker test proves which end-to-end property?",
+    options: [
+      "effectively-once counting under real failure",
+      "the queue's raw throughput ceiling",
+      "worker autoscaling under bursty load",
+      "graceful degradation of the API",
+    ],
+    answer: 0,
+    explain: "Crash → redelivery (at-least-once, 23) → idempotent aggregation (25) → the count is right anyway. Demonstrating it live is worth more than explaining it — that's why it's a requirement." },
+  { prompt: "DESIGN.md demands envelope math for a FAKE 10M DAU because…",
+    options: [
+      "numbers must justify each component's presence",
+      "recruiters ask for daily active users",
+      "the load test needs a target",
+      "capacity plans are legally required",
+    ],
+    answer: 0,
+    explain: "The discipline of 06/11: every box earns its place with arithmetic ('cache because 100:1 reads'), even hypothetically. A diagram without numbers is decoration." },
+  { prompt: "Why is defending YOUR capstone harder than a standard mock?",
+    options: [
+      "real decisions have real discoverable flaws",
+      "interviewers dislike paste-sharing services",
+      "capstones are larger than interview scope",
+      "written designs cannot be revised",
+    ],
+    answer: 0,
+    explain: "Abstract designs flex under pushback; your actual code made actual commitments with actual weaknesses. Owning them gracefully ('here's what breaks at 100× and what I'd change') is the senior-loop skill itself." },
+  { prompt: "Spaced review — Lesson 40: in every mock, the minutes that decide the outcome are spent on…",
+    options: [
+      "deep dives with explicit tradeoffs",
+      "a flawless high-level diagram",
+      "exhaustive requirement gathering upfront",
+      "naming the correct vendor products",
+    ],
+    answer: 0,
+    explain: "Stage 5 is where hiring signal lives — hard problems, options costed aloud, budgets declared. The course's last spaced-review question is the course's most important sentence. Now go say it out loud." },
+]);
+</script>
+</body>
+</html>

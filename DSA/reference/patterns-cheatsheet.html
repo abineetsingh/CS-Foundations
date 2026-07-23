@@ -15,32 +15,32 @@
   <h2>Tells → patterns</h2>
   <table>
     <tr><th>The problem says…</th><th>Reach for</th><th>Typical cost</th><th>Lesson</th></tr>
-    <tr><td>"have I seen this?" / pair-finding, unsorted</td><td>hash map/set</td><td><code>O(n)</code>, O(n) space</td><td><a href="../lessons/0005-hash-maps-and-sets.html">0005</a></td></tr>
-    <tr><td>sorted + find a pair; palindromes; in-place partition</td><td>two pointers</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/0006-two-pointers.html">0006</a></td></tr>
-    <tr><td>every subarray/substring of size k</td><td>fixed window</td><td><code>O(n)</code></td><td><a href="../lessons/0007-sliding-window-fixed.html">0007</a></td></tr>
-    <tr><td>longest/shortest contiguous stretch satisfying …</td><td>variable window</td><td><code>O(n)</code></td><td><a href="../lessons/0008-sliding-window-variable.html">0008</a></td></tr>
-    <tr><td>many range-sum queries; subarray sums to k</td><td>prefix sums (+ map)</td><td><code>O(n)</code> build, <code>O(1)</code> query</td><td><a href="../lessons/0009-prefix-sums.html">0009</a></td></tr>
-    <tr><td>matching/nesting; most recent unfinished; next greater</td><td>stack / monotonic stack</td><td><code>O(n)</code></td><td><a href="../lessons/0010-stacks.html">0010</a></td></tr>
-    <tr><td>process in arrival order; level-by-level</td><td>queue/deque</td><td><code>O(1)</code>/op</td><td><a href="../lessons/0011-queues-and-deques.html">0011</a></td></tr>
-    <tr><td>reverse/middle/cycle in a linked list</td><td>in-place reversal; fast/slow</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/0013-linked-lists-ii.html">0013</a></td></tr>
-    <tr><td>sorted array lookup; "first index where…"</td><td>binary search (leftmost)</td><td><code>O(log n)</code></td><td><a href="../lessons/0014-binary-search-i.html">0014</a></td></tr>
-    <tr><td>"minimize the max…"; min speed/capacity so that…</td><td>binary search on answers</td><td><code>O(n log range)</code></td><td><a href="../lessons/0015-binary-search-ii.html">0015</a></td></tr>
-    <tr><td>order/closeness/intervals mentioned at all</td><td>sort first, then sweep</td><td><code>O(n log n)</code></td><td><a href="../lessons/0016-sorting.html">0016</a>, <a href="../lessons/0039-intervals.html">0039</a></td></tr>
-    <tr><td>subtree computations; paths in trees</td><td>post-order DFS, report up</td><td><code>O(n)</code>, O(h) space</td><td><a href="../lessons/0022-tree-problems-toolkit.html">0022</a></td></tr>
-    <tr><td>levels/nearest/shallowest in tree or graph</td><td>BFS (+ level-size trick)</td><td><code>O(V+E)</code></td><td><a href="../lessons/0020-tree-bfs.html">0020</a></td></tr>
-    <tr><td>k largest/smallest/closest; "top k"; streaming best</td><td>heap of size k</td><td><code>O(n log k)</code></td><td><a href="../lessons/0023-heaps.html">0023</a></td></tr>
-    <tr><td>running median; merge k sorted streams</td><td>two heaps; k-way merge</td><td><code>O(log n)</code>/op; <code>O(N log k)</code></td><td><a href="../lessons/0024-two-heaps-and-k-way-merge.html">0024</a></td></tr>
-    <tr><td>"prefix", autocomplete, wildcard words</td><td>trie</td><td><code>O(L)</code>/op</td><td><a href="../lessons/0025-tries.html">0025</a></td></tr>
-    <tr><td>"generate all…" / place under constraints</td><td>backtracking + pruning</td><td>exponential (output-bound)</td><td><a href="../lessons/0026-backtracking-i.html">0026</a>–<a href="../lessons/0027-backtracking-ii.html">27</a></td></tr>
-    <tr><td>connected groups; islands</td><td>DFS flood / components</td><td><code>O(V+E)</code></td><td><a href="../lessons/0028-graphs-traversal.html">0028</a>–<a href="../lessons/0029-grid-graphs.html">29</a></td></tr>
-    <tr><td>prerequisites/dependencies/build order</td><td>topological sort (Kahn's)</td><td><code>O(V+E)</code></td><td><a href="../lessons/0030-topological-sort.html">0030</a></td></tr>
-    <tr><td>merges arriving over time; redundant edge</td><td>union-find</td><td><code>O(α)</code>/op</td><td><a href="../lessons/0031-union-find.html">0031</a></td></tr>
-    <tr><td>cheapest path, weighted non-negative</td><td>Dijkstra (heap)</td><td><code>O(E log V)</code></td><td><a href="../lessons/0032-shortest-paths.html">0032</a></td></tr>
-    <tr><td>count ways / max-min over sequential choices; overlap</td><td>DP (4 questions)</td><td>states × transition</td><td><a href="../lessons/0034-dp-memoization.html">0034</a>–<a href="../lessons/0037-knapsack.html">37</a></td></tr>
-    <tr><td>budget/capacity + take-or-skip items</td><td>knapsack (0/1 or unbounded)</td><td><code>O(n·W)</code></td><td><a href="../lessons/0037-knapsack.html">0037</a></td></tr>
-    <tr><td>max non-overlapping; min jumps/arrows</td><td>greedy (attack it first!)</td><td><code>O(n log n)</code></td><td><a href="../lessons/0038-greedy.html">0038</a></td></tr>
-    <tr><td>every element appears twice except…</td><td>XOR</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/0040-bit-manipulation.html">0040</a></td></tr>
-    <tr><td>"design a class, every op O(…)"</td><td>compose two structures</td><td>per spec</td><td><a href="../lessons/0043-design-problems.html">0043</a></td></tr>
+    <tr><td>"have I seen this?" / pair-finding, unsorted</td><td>hash map/set</td><td><code>O(n)</code>, O(n) space</td><td><a href="../lessons/05-hash-maps-and-sets.html">05</a></td></tr>
+    <tr><td>sorted + find a pair; palindromes; in-place partition</td><td>two pointers</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/06-two-pointers.html">06</a></td></tr>
+    <tr><td>every subarray/substring of size k</td><td>fixed window</td><td><code>O(n)</code></td><td><a href="../lessons/07-sliding-window-fixed.html">07</a></td></tr>
+    <tr><td>longest/shortest contiguous stretch satisfying …</td><td>variable window</td><td><code>O(n)</code></td><td><a href="../lessons/08-sliding-window-variable.html">08</a></td></tr>
+    <tr><td>many range-sum queries; subarray sums to k</td><td>prefix sums (+ map)</td><td><code>O(n)</code> build, <code>O(1)</code> query</td><td><a href="../lessons/09-prefix-sums.html">09</a></td></tr>
+    <tr><td>matching/nesting; most recent unfinished; next greater</td><td>stack / monotonic stack</td><td><code>O(n)</code></td><td><a href="../lessons/10-stacks.html">10</a></td></tr>
+    <tr><td>process in arrival order; level-by-level</td><td>queue/deque</td><td><code>O(1)</code>/op</td><td><a href="../lessons/11-queues-and-deques.html">11</a></td></tr>
+    <tr><td>reverse/middle/cycle in a linked list</td><td>in-place reversal; fast/slow</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/13-linked-lists-ii.html">13</a></td></tr>
+    <tr><td>sorted array lookup; "first index where…"</td><td>binary search (leftmost)</td><td><code>O(log n)</code></td><td><a href="../lessons/14-binary-search-i.html">14</a></td></tr>
+    <tr><td>"minimize the max…"; min speed/capacity so that…</td><td>binary search on answers</td><td><code>O(n log range)</code></td><td><a href="../lessons/15-binary-search-ii.html">15</a></td></tr>
+    <tr><td>order/closeness/intervals mentioned at all</td><td>sort first, then sweep</td><td><code>O(n log n)</code></td><td><a href="../lessons/16-sorting.html">16</a>, <a href="../lessons/39-intervals.html">39</a></td></tr>
+    <tr><td>subtree computations; paths in trees</td><td>post-order DFS, report up</td><td><code>O(n)</code>, O(h) space</td><td><a href="../lessons/22-tree-problems-toolkit.html">22</a></td></tr>
+    <tr><td>levels/nearest/shallowest in tree or graph</td><td>BFS (+ level-size trick)</td><td><code>O(V+E)</code></td><td><a href="../lessons/20-tree-bfs.html">20</a></td></tr>
+    <tr><td>k largest/smallest/closest; "top k"; streaming best</td><td>heap of size k</td><td><code>O(n log k)</code></td><td><a href="../lessons/23-heaps.html">23</a></td></tr>
+    <tr><td>running median; merge k sorted streams</td><td>two heaps; k-way merge</td><td><code>O(log n)</code>/op; <code>O(N log k)</code></td><td><a href="../lessons/24-two-heaps-and-k-way-merge.html">24</a></td></tr>
+    <tr><td>"prefix", autocomplete, wildcard words</td><td>trie</td><td><code>O(L)</code>/op</td><td><a href="../lessons/25-tries.html">25</a></td></tr>
+    <tr><td>"generate all…" / place under constraints</td><td>backtracking + pruning</td><td>exponential (output-bound)</td><td><a href="../lessons/26-backtracking-i.html">26</a>–<a href="../lessons/27-backtracking-ii.html">27</a></td></tr>
+    <tr><td>connected groups; islands</td><td>DFS flood / components</td><td><code>O(V+E)</code></td><td><a href="../lessons/28-graphs-traversal.html">28</a>–<a href="../lessons/29-grid-graphs.html">29</a></td></tr>
+    <tr><td>prerequisites/dependencies/build order</td><td>topological sort (Kahn's)</td><td><code>O(V+E)</code></td><td><a href="../lessons/30-topological-sort.html">30</a></td></tr>
+    <tr><td>merges arriving over time; redundant edge</td><td>union-find</td><td><code>O(α)</code>/op</td><td><a href="../lessons/31-union-find.html">31</a></td></tr>
+    <tr><td>cheapest path, weighted non-negative</td><td>Dijkstra (heap)</td><td><code>O(E log V)</code></td><td><a href="../lessons/32-shortest-paths.html">32</a></td></tr>
+    <tr><td>count ways / max-min over sequential choices; overlap</td><td>DP (4 questions)</td><td>states × transition</td><td><a href="../lessons/34-dp-memoization.html">34</a>–<a href="../lessons/37-knapsack.html">37</a></td></tr>
+    <tr><td>budget/capacity + take-or-skip items</td><td>knapsack (0/1 or unbounded)</td><td><code>O(n·W)</code></td><td><a href="../lessons/37-knapsack.html">37</a></td></tr>
+    <tr><td>max non-overlapping; min jumps/arrows</td><td>greedy (attack it first!)</td><td><code>O(n log n)</code></td><td><a href="../lessons/38-greedy.html">38</a></td></tr>
+    <tr><td>every element appears twice except…</td><td>XOR</td><td><code>O(n)</code>, O(1) space</td><td><a href="../lessons/40-bit-manipulation.html">40</a></td></tr>
+    <tr><td>"design a class, every op O(…)"</td><td>compose two structures</td><td>per spec</td><td><a href="../lessons/43-design-problems.html">43</a></td></tr>
   </table>
 
   <h2>The brute-force gap → the fix</h2>

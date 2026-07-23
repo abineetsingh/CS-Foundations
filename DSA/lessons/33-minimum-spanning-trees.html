@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 33 — Minimum Spanning Trees (Optional)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 33 · Phase 3 · optional · ~20 minutes</span>
+  <h1>Minimum Spanning Trees</h1>
+  <p class="lede">Today's skill: connect all nodes at minimum total cost — Kruskal's algorithm, which is just sorting plus the Union-Find you already own.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this — and why optional</span>
+    <p>MST appears in AI-lab screens rarely; it's here because Kruskal's is a two-lesson combo (16 sorting + 31 Union-Find) you get nearly free, and "Min Cost to Connect All Points" does show up. If time is tight, read the Kruskal section, skip the rest, move to Phase 4.</p>
+  </div>
+
+  <h2>The problem</h2>
+  <p><em>Given a weighted undirected graph, choose edges connecting ALL nodes with minimum total weight.</em> The answer is always a <strong>tree</strong> (V−1 edges): any cycle contains a removable edge that keeps everything connected but costs less — so optimal solutions never contain cycles.</p>
+
+  <h2>Kruskal's: greedy + Union-Find</h2>
+  <p>Sort edges cheapest-first; take each edge unless it would close a cycle — and "would close a cycle" is exactly Union-Find's <code>union() == False</code> (Lesson 31):</p>
+  <pre><code>def mst_cost(n, edges):                    # edges: (w, u, v)
+    edges.sort()                           # cheapest first — O(E log E)
+    uf = UnionFind(n)                      # Lesson 31, verbatim
+    total, used = 0, 0
+    for w, u, v in edges:
+        if uf.union(u, v):                 # False ⇔ u,v already connected ⇔ cycle
+            total += w
+            used += 1
+            if used == n - 1:              # a spanning tree is complete
+                break
+    return total if used == n - 1 else -1  # -1: graph wasn't connected</code></pre>
+  <p><strong>O(E log E)</strong>, dominated by the sort. Why is the greedy choice safe? The <strong>cut argument</strong>, one sentence: for any way of splitting the nodes in two, the cheapest edge crossing the split belongs to some MST — taking cheapest-first never burns you. (Compare Dijkstra's safety argument from Lesson 32: both greedy proofs pivot on "nothing later can beat this." Greedy-with-proof is Phase 4's Lesson 38 topic; you're previewing it.)</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-kruskal"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const cfg = { nodes: { A: [80, 50], B: [280, 50], C: [80, 180], D: [280, 180] },
+      edges: [["A","B","1"],["C","D","2"],["A","C","3"],["B","D","4"]], width: 360, height: 230 };
+    const fr = [
+      { note: "Edges sorted cheapest-first: AB(1), CD(2), AC(3), BD(4). Take each unless it closes a cycle — and union-find answers that in O(&#945;)." },
+      { ehl: { "A-B": "good" },
+        note: "AB(1): find(A) &#8800; find(B) — union succeeds. TAKE. Groups: {A,B} {C} {D}." },
+      { ehl: { "A-B": "good", "C-D": "good" },
+        note: "CD(2): different groups — TAKE. Groups: {A,B} {C,D}." },
+      { ehl: { "A-B": "good", "C-D": "good", "A-C": "good" },
+        note: "AC(3): different groups — TAKE, merging everything: {A,B,C,D}. That's n&#8722;1 = 3 edges — a spanning tree is complete." },
+      { ehl: { "A-B": "good", "C-D": "good", "A-C": "good", "B-D": "bad" },
+        note: "BD(4): find(B) == find(D) — union returns False: B and D are ALREADY connected through cheaper edges. Taking BD would add cost and a cycle. REJECT. (In 'Redundant Connection', this edge is the answer.)" },
+      { ehl: { "A-B": "good", "C-D": "good", "A-C": "good" }, hl: { A: "good", B: "good", C: "good", D: "good" },
+        note: "MST: AB + CD + AC, total cost 6. Safe by the cut argument — for ANY split of the nodes, the cheapest crossing edge belongs to some MST, so cheapest-first never burns you." }
+    ];
+    Viz.player("viz-kruskal", { caption: "Kruskal's — sorted edges + union-find, accept or reject", view: Viz.graph(cfg), frames: fr });
+  })();
+  </script>
+
+  <h2>Prim's, for recognition</h2>
+  <p>The alternative: grow one tree from a seed, always adding the cheapest edge <em>leaving the tree</em> — a min-heap of frontier edges. It's Dijkstra's twin with the heap keyed on <em>edge weight</em> instead of <em>total path distance</em>. If you know Dijkstra, you can reconstruct Prim's; most people implement Kruskal's (fewer moving parts) and mention Prim's.</p>
+
+  <h2>MST vs shortest path — don't conflate</h2>
+  <table>
+    <tr><th></th><th>MST (Kruskal/Prim)</th><th>Shortest path (Dijkstra)</th></tr>
+    <tr><td>optimizes</td><td>total weight of the whole network</td><td>each node's distance from a source</td></tr>
+    <tr><td>asks</td><td>"cheapest way to wire everything together"</td><td>"cheapest route from A"</td></tr>
+    <tr><td>gotcha</td><td colspan="2">the MST path between two nodes is NOT generally their shortest path</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Single-linkage hierarchical clustering IS Kruskal's algorithm — merge the closest clusters repeatedly, and the merge sequence is exactly MST construction on the distance graph. Cut the MST's k−1 heaviest edges and you have k clusters. Data-center network design and minimum-cost cabling are the literal use case.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson — Phase 3 milestone</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Advanced Graphs, "Min Cost to Connect All Points" video</a>.</li>
+    <li>Problem: "Min Cost to Connect All Points" (build the edge list from coordinates, then Kruskal's).</li>
+    <li><strong>Milestone check</strong>: take an unseen graph-flavored word problem and, before coding, say which tool fits (BFS / DFS / topo / UF / Dijkstra) and why. Try "Is Graph Bipartite?" cold. Report to Claude Code — then Phase 4: dynamic programming.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>The cut argument deserves five minutes of struggle: try to construct a counterexample (a split whose cheapest crossing edge is in NO MST). When you fail, you'll know why greedy works. Discuss with Claude Code if the failure isn't illuminating.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="32-shortest-paths.html">← 32 Shortest paths</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="34-dp-memoization.html">34 DP I: memoization →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "In Kruskal's, uf.union(u, v) returning False means the edge…",
+    options: [
+      "would close a cycle — skip it, a cheaper connection already links u and v",
+      "has negative weight and must be handled specially",
+      "connects two different components and should be taken",
+      "is a duplicate in the edge list"
+    ],
+    answer: 0,
+    explain: "Same root = already connected through cheaper edges (we go cheapest-first). Taking it would add cost and a cycle. Union-Find's return value IS the algorithm's decision."
+  },
+  {
+    prompt: "An MST of n nodes always has exactly…",
+    options: ["n − 1 edges", "n edges", "n/2 edges", "as many edges as the densest cycle"],
+    answer: 0,
+    explain: "Trees: connected + acyclic ⇔ exactly n−1 edges. Fewer → disconnected; more → a cycle with a droppable edge. This is also the loop's stopping condition (used == n-1)."
+  },
+  {
+    prompt: "Nodes A and B are connected through the MST. Their path in it is…",
+    options: [
+      "not necessarily their shortest path in the original graph",
+      "always their shortest path",
+      "always exactly twice their shortest path",
+      "the longest path between them"
+    ],
+    answer: 0,
+    explain: "MST minimizes the NETWORK's total cost, not any pair's distance. A cheap global wiring can route A→B the long way. Different objective, different tool — the conflation is a known interview trap."
+  },
+  {
+    prompt: "Kruskal's total complexity is dominated by…",
+    options: [
+      "sorting the edges: O(E log E)",
+      "the union operations: O(E · α)",
+      "building the adjacency list: O(V + E)",
+      "checking connectivity at the end: O(V)"
+    ],
+    answer: 0,
+    explain: "Union-Find ops are effectively constant (α ≤ 4), so the sort is the bill. Another instance of Lesson 16's 'the sort is the dominant term.'"
+  },
+  {
+    prompt: "Review from 32: Dijkstra must NOT be used when…",
+    options: [
+      "some edge weights are negative",
+      "the graph is disconnected",
+      "the graph contains cycles",
+      "edge weights are floating-point"
+    ],
+    answer: 0,
+    explain: "Finalize-on-pop assumes extending a path never shrinks it — negative edges void that. (Disconnection and cycles are fine; unreachable nodes just stay absent from dist.)"
+  }
+]);
+</script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 35 — Observability</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 35 · ~30 minutes · Systems Design · hands-on · Phase 4</span>
+  <h1>Observability</h1>
+  <p class="lede">One skill, learned today: give a system eyes — logs, metrics, traces — define an SLO on top, and never trust an average again.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Everything in phase 4 assumed you could "watch error rates" (canaries), "notice queue depth" (autoscaling), "detect death" (health checks). Today builds the watching itself. In interviews, "how would you know it's broken?" separates people who've operated systems from people who've drawn them.</p>
+  </div>
+
+  <h2>The three pillars</h2>
+  <table>
+    <tr><th>Pillar</th><th>What</th><th>Answers</th><th>Cost profile</th></tr>
+    <tr><td><strong>Logs</strong></td><td>timestamped, <em>structured</em> events (JSON, not prose): <code>{"event":"charge_failed","user":42,"amount":50}</code></td><td>"what exactly happened to request X?"</td><td>huge volume — sample or retain briefly</td></tr>
+    <tr><td><strong>Metrics</strong></td><td>cheap pre-aggregated numbers over time: request count, error rate, latency histogram, queue depth</td><td>"how is the system doing right now / vs yesterday?"</td><td>tiny, keep forever — dashboards &amp; alerts live here</td></tr>
+    <tr><td><strong>Traces</strong></td><td>one request's journey stitched across services, timed per hop, joined by a propagated <strong>trace id</strong></td><td>"WHERE did these 3 seconds go?"</td><td>sampled (e.g. 1%) — the microservices debugger (30's murder mystery, solved)</td></tr>
+  </table>
+  <p>The modern standard for emitting all three is <a href="https://opentelemetry.io/docs/what-is-opentelemetry/">OpenTelemetry</a>; Prometheus + Grafana is the classic metrics stack. Names to drop; concepts to own.</p>
+
+  <h2>Percentiles: the lie of the average</h2>
+  <p>A dashboard says "average latency: 45 ms." Meanwhile 1 in 100 users waits 8 seconds. Averages bury outliers; latency is a <em>distribution</em>, so operators speak in <a href="../reference/glossary.html#percentile">percentiles</a>: p50 (median), p99 (the worst 1%), p99.9. Two reasons the tail IS the product: heavy users hit you most often, so they meet the p99 constantly; and a page fanning out to 10 backend calls (30) suffers the tail on <em>some</em> call with probability 1−0.99¹⁰ ≈ 10% — <strong>tail latencies compound under fan-out</strong>. Alert on p99, chart p50/p95/p99 together, and treat any average with suspicion <a href="https://sre.google/sre-book/monitoring-distributed-systems/">[Google SRE: monitoring]</a>.</p>
+
+  <h2>SLOs: turning metrics into promises</h2>
+  <p>An <strong>SLI</strong> is a measured indicator ("fraction of requests under 200 ms, successful"). An <a href="../reference/glossary.html#slo">SLO</a> is the target you commit to: "99.9% of requests succeed under 200 ms, monthly." The genius part is the <strong>error budget</strong>: 100% − SLO = the failure you're <em>allowed</em> (0.1% ≈ 43 min/month). Budget healthy → ship fast, take risks (34 canaries burn budget!). Budget spent → freeze features, fix reliability. It converts the eternal speed-vs-safety argument into arithmetic both sides accept <a href="https://sre.google/sre-book/service-level-objectives/">[Google SRE: SLOs]</a>. Alert on <em>budget burn rate</em> ("at this error rate, the month's budget dies in 6 hours"), not on every blip — that's the difference between paging and spam.</p>
+  <div id="flow"></div>
+
+  <h2>Hands-on: instrument your API (10 min)</h2>
+  <p>Add the metrics pillar to the notes API with a middleware — this is real instrumentation, not a toy:</p>
+  <pre><code>import time, collections
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+metrics = {"requests": collections.Counter(), "latencies_ms": collections.deque(maxlen=10_000)}
+
+@app.middleware("http")
+async def observe(request: Request, call_next):
+    t0 = time.monotonic()
+    response = await call_next(request)
+    ms = (time.monotonic() - t0) * 1000
+    metrics["requests"][f"{request.method} {request.url.path} {response.status_code}"] += 1
+    metrics["latencies_ms"].append(ms)
+    return response
+
+@app.get("/metrics")
+def get_metrics():
+    lat = sorted(metrics["latencies_ms"])
+    pct = lambda p: lat[int(len(lat) * p)] if lat else 0
+    return {"counts": dict(metrics["requests"]),
+            "p50_ms": round(pct(0.50), 2), "p95_ms": round(pct(0.95), 2),
+            "p99_ms": round(pct(0.99), 2)}</code></pre>
+  <p>Fire 100 curls at your endpoints, then <code>curl localhost:8000/metrics</code>: live counts by status code and real percentiles. Add a <code>time.sleep(2)</code> to one handler and watch p99 scream while p50 sits innocent — the average's lie, demonstrated on your own service. (Production swaps this dict for a Prometheus client; the shape is identical.)</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>LLM serving adds its own SLIs to the classic set: <strong>time-to-first-token</strong> (the p99 users feel), tokens/second, GPU utilization, KV-cache hit rate — canaried per model release (34). And agent observability is traces wearing a new hat: a tool-call chain is a distributed trace, span by span; "where did this agent burn 30 seconds" is the exact question tracing answers. Same pillars, new nouns.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://sre.google/sre-book/service-level-objectives/">Google SRE book — Service Level Objectives</a> (25 min, free) — the chapter that gave the industry its reliability vocabulary. Skim <a href="https://sre.google/sre-book/monitoring-distributed-systems/">Monitoring Distributed Systems</a> for the "four golden signals."</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="34-cicd-and-safe-releases.html">← 34 CI/CD &amp; safe releases</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="36-reliability-patterns.html">36 Reliability patterns →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "user", label: "Request", sub: "trace: 7f3a…" },
+    { id: "api", label: "API", sub: "span: 12ms" },
+    { id: "auth", label: "Auth svc", sub: "span: 8ms", row: 1 },
+    { id: "notes", label: "Notes svc", sub: "span: 2,950ms ⚠", row: 1 },
+    { id: "db", label: "Database", sub: "span: 2,900ms ⚠", row: 1 },
+  ],
+  links: [["user","api"], ["api","auth"], ["api","notes"], ["notes","db"]],
+  steps: [
+    { at: "user",
+      caption: "A user reports 'it took 3 seconds.' Metrics agree — p99 spiked at 14:02. But WHICH of the four services ate the time? Enter the trace: this request carried id 7f3a… through every hop." },
+    { from: "user", to: "api", packet: "span: api 12ms",
+      caption: "Each service records a span — its slice of the request, timed — tagged with the same trace id (propagated via a header). The API's own work: 12 ms. Innocent." },
+    { from: "api", to: "auth", packet: "span: auth 8ms",
+      caption: "Auth check: 8 ms. Innocent. (Without tracing, this service would spend the afternoon proving that in a war-room channel.)" },
+    { from: "api", to: "notes", packet: "span: notes 2,950ms",
+      caption: "The notes service: 2.95 seconds. Guilty — but of what? Its child span tells us:" },
+    { from: "notes", to: "db", packet: "span: SELECT 2,900ms",
+      caption: "One SQL query, 2.9 s. The trace hands you the exact query; EXPLAIN (13) shows a missing index after last week's new filter shipped. 3 seconds → one line of DDL. That's tracing's entire value proposition." },
+    { at: ["user", "api", "auth", "notes", "db"],
+      caption: "The pillars cooperate: METRICS said 'p99 spiked at 14:02' (when/how bad), the TRACE said 'the notes DB query' (where), LOGS say which inputs hit it (what exactly). Alerting fires on SLO burn rate — not on every blip." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "p50 = 40ms, p99 = 6s. The average will…",
+    options: [
+      "hide the tail your users feel",
+      "equal roughly six hundred milliseconds",
+      "track the median almost exactly",
+      "alert operators to the outliers",
+    ],
+    answer: 0,
+    explain: "The average lands somewhere unremarkable and screams nothing, while 1% of requests — hitting your heaviest users most — take 6 seconds. Distributions, not averages; p99, not mean." },
+  { prompt: "A page fans out to 10 services, each with 1% slow requests. Fraction of pages hitting at least one slow call:",
+    options: [
+      "about ten percent of pages",
+      "about one percent of pages",
+      "about half of one percent",
+      "effectively none, tails cancel out",
+    ],
+    answer: 0,
+    explain: "1 − 0.99¹⁰ ≈ 9.6%. Fan-out compounds tails — why microservice architectures obsess over p99 and why 'the tail is the product' at scale." },
+  { prompt: "The error budget converts 'move fast vs stay safe' into…",
+    options: [
+      "arithmetic both sides can accept",
+      "a veto for the reliability team",
+      "a quarterly negotiation over targets",
+      "an alert on every failure",
+    ],
+    answer: 0,
+    explain: "99.9% SLO = 43 min/month of allowed failure. Budget left → ship boldly. Budget gone → reliability work wins, by prior agreement. Policy as math instead of meetings." },
+  { prompt: "Which question is TRACES' specialty?",
+    options: [
+      "where a slow request spent time",
+      "how many requests failed today",
+      "what the exact error message said",
+      "whether the fleet needs scaling",
+    ],
+    answer: 0,
+    explain: "The span tree shows each hop's duration for one request across services. Counts → metrics; exact messages → logs; scaling signals → metrics again." },
+  { prompt: "Spaced review — Lesson 34: the canary's 'auto-rollback on regression' consumes which observability products?",
+    options: [
+      "error-rate and latency metrics baselines",
+      "sampled traces from the canary",
+      "structured logs of each request",
+      "the SLO document itself",
+    ],
+    answer: 0,
+    explain: "Canary analysis compares v2's error/latency METRICS against v1's baseline — cheap, continuous, automatic. Traces and logs join for diagnosis after the rollback fires." },
+]);
+</script>
+</body>
+</html>

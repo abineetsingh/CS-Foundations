@@ -3,15 +3,17 @@
 Full lesson sequence from beginner to interview-ready.
 Ordering follows the dependency structure of the [NeetCode roadmap](https://neetcode.io/roadmap), adapted for a Python-only beginner with ML/AI ambitions.
 
-**Status (2026-07-16): all 45 lessons are authored.** Filenames `0001`–`0045` in
+**Status (2026-07-16): all 45 lessons are authored.** Filenames `01`–`45` in
 `./lessons/` match this list's numbering exactly. Each lesson is ~20–30 min with an
 inline quiz (including spaced-review questions from earlier lessons). After most
 lessons: 30–60 min of matching problems from
 [NeetCode 250](https://neetcode.io/practice/practice/neetcode250).
 
+Open [`00-table_of_contents.html`](./00-table_of_contents.html) to browse and launch every lesson as a book.
+
 ## Phase 0 — Foundations (week 1)
 
-1. Big-O: reading the cost of code — `0001`
+1. Big-O: reading the cost of code — `01`
 2. Space complexity — the memory side of Big-O; time/space trade-offs
 3. Arrays & Python lists under the hood — dynamic arrays, amortized append, why `insert(0)` hurts
 4. Strings & immutability — why `+=` in a loop is O(n²); `join`, slicing costs

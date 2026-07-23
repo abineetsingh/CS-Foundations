@@ -15,34 +15,34 @@
   <h2>Reading the problem → reaching for the tool</h2>
   <table>
     <tr><th>When you see…</th><th>Reach for…</th><th>Lesson</th></tr>
-    <tr><td>Reads ≫ writes, hot skewed keys</td><td>Cache-aside + TTL + delete-on-write; target h ≥ 99%</td><td>0009–0010</td></tr>
-    <tr><td>"Serve globally / images / video"</td><td>Object storage + CDN + presigned uploads</td><td>0019, 0010</td></tr>
-    <tr><td>One machine can't take the read QPS</td><td>Cache first, then read replicas, then shard</td><td>0009, 0015, 0016</td></tr>
-    <tr><td>Dataset too big for one machine</td><td>Shard by key (hot query → one shard); consistent hashing to grow</td><td>0016</td></tr>
-    <tr><td>Slow / bursty / failable work in the request path</td><td>Queue + workers; return 202; ack-after-work; DLQ</td><td>0023</td></tr>
-    <tr><td>Many systems need the same facts / replay / audit</td><td>Event log (Kafka); consumers with offsets; CDC</td><td>0024</td></tr>
-    <tr><td>"No duplicates" / "don't lose it"</td><td>At-least-once + idempotent processing (dedupe by id, transactional)</td><td>0022, 0025</td></tr>
-    <tr><td>Multi-service operation, no shared commit</td><td>Saga + compensations; outbox for the events</td><td>0027</td></tr>
-    <tr><td>Protect a service from too much traffic</td><td>Token-bucket rate limit (per client) + load shedding (total, by priority)</td><td>0028</td></tr>
-    <tr><td>Server has news for the client</td><td>Poll → long-poll → SSE (one-way) → WebSocket (two-way)</td><td>0029</td></tr>
-    <tr><td>"Which store?"</td><td>Relations/ad-hoc → SQL; by-key → KV/doc; heavy ordered writes → wide-column; traversals → graph</td><td>0017</td></tr>
-    <tr><td>Correctness-critical read (balance, checkout)</td><td>Read from leader / linearizable; everything else eventual</td><td>0015, 0018</td></tr>
-    <tr><td>Timeline / feed at scale</td><td>Hybrid fan-out: push for normal users, pull for celebrities</td><td>0043</td></tr>
-    <tr><td>"How do you know it's broken?"</td><td>SLO burn-rate alerts on p99 symptoms; canary on deploy</td><td>0035, 0034, 0039</td></tr>
-    <tr><td>"How does it fail?"</td><td>Timeouts + circuit breakers + bulkheads + graceful degradation</td><td>0022, 0036</td></tr>
-    <tr><td>"How do you deploy safely?"</td><td>CI pipeline → immutable image → canary → auto-rollback; feature flags</td><td>0032, 0034</td></tr>
-    <tr><td>"How is it secured?"</td><td>TLS + gateway authn + object-level authz + secrets manager + least privilege</td><td>0037</td></tr>
+    <tr><td>Reads ≫ writes, hot skewed keys</td><td>Cache-aside + TTL + delete-on-write; target h ≥ 99%</td><td>09–10</td></tr>
+    <tr><td>"Serve globally / images / video"</td><td>Object storage + CDN + presigned uploads</td><td>19, 10</td></tr>
+    <tr><td>One machine can't take the read QPS</td><td>Cache first, then read replicas, then shard</td><td>09, 15, 16</td></tr>
+    <tr><td>Dataset too big for one machine</td><td>Shard by key (hot query → one shard); consistent hashing to grow</td><td>16</td></tr>
+    <tr><td>Slow / bursty / failable work in the request path</td><td>Queue + workers; return 202; ack-after-work; DLQ</td><td>23</td></tr>
+    <tr><td>Many systems need the same facts / replay / audit</td><td>Event log (Kafka); consumers with offsets; CDC</td><td>24</td></tr>
+    <tr><td>"No duplicates" / "don't lose it"</td><td>At-least-once + idempotent processing (dedupe by id, transactional)</td><td>22, 25</td></tr>
+    <tr><td>Multi-service operation, no shared commit</td><td>Saga + compensations; outbox for the events</td><td>27</td></tr>
+    <tr><td>Protect a service from too much traffic</td><td>Token-bucket rate limit (per client) + load shedding (total, by priority)</td><td>28</td></tr>
+    <tr><td>Server has news for the client</td><td>Poll → long-poll → SSE (one-way) → WebSocket (two-way)</td><td>29</td></tr>
+    <tr><td>"Which store?"</td><td>Relations/ad-hoc → SQL; by-key → KV/doc; heavy ordered writes → wide-column; traversals → graph</td><td>17</td></tr>
+    <tr><td>Correctness-critical read (balance, checkout)</td><td>Read from leader / linearizable; everything else eventual</td><td>15, 18</td></tr>
+    <tr><td>Timeline / feed at scale</td><td>Hybrid fan-out: push for normal users, pull for celebrities</td><td>43</td></tr>
+    <tr><td>"How do you know it's broken?"</td><td>SLO burn-rate alerts on p99 symptoms; canary on deploy</td><td>35, 34, 39</td></tr>
+    <tr><td>"How does it fail?"</td><td>Timeouts + circuit breakers + bulkheads + graceful degradation</td><td>22, 36</td></tr>
+    <tr><td>"How do you deploy safely?"</td><td>CI pipeline → immutable image → canary → auto-rollback; feature flags</td><td>32, 34</td></tr>
+    <tr><td>"How is it secured?"</td><td>TLS + gateway authn + object-level authz + secrets manager + least privilege</td><td>37</td></tr>
   </table>
 
   <h2>Reflexes that score in interviews</h2>
   <ul>
-    <li><strong>Envelope drives design:</strong> compute QPS/storage, then state the <em>verdict</em> ("reads dominate → cache-first"). Numbers that don't change the design were wasted. <span style="color:var(--muted)">(0006)</span></li>
-    <li><strong>Declare budgets unprompted:</strong> staleness ("timelines 60 s stale, fine"), latency (p99 &lt; 200 ms), error budget (99.9%). The strongest experience-signal. <span style="color:var(--muted)">(0009, 0035)</span></li>
-    <li><strong>Every tradeoff as "X because Y; alternative costs Z."</strong> Never a bare product name. <span style="color:var(--muted)">(0040)</span></li>
-    <li><strong>Truth vs derived:</strong> one source of truth; caches, search indexes, feeds, vector indexes are rebuildable projections fed async — losing them degrades, not destroys. <span style="color:var(--muted)">(0020, 0043)</span></li>
-    <li><strong>Idempotency is everywhere:</strong> retries, queues, event replay, agent tools all demand it. Ask of every handler: "safe to run twice?" <span style="color:var(--muted)">(0022, 0025)</span></li>
-    <li><strong>Pushback is direction:</strong> "what if a celebrity posts?" points at the intended deep dive. Welcome it. <span style="color:var(--muted)">(0040)</span></li>
-    <li><strong>Defer complexity, name the trigger:</strong> "shard when the primary nears limits" beats premature sharding. <span style="color:var(--muted)">(0016, 0021)</span></li>
+    <li><strong>Envelope drives design:</strong> compute QPS/storage, then state the <em>verdict</em> ("reads dominate → cache-first"). Numbers that don't change the design were wasted. <span style="color:var(--muted)">(06)</span></li>
+    <li><strong>Declare budgets unprompted:</strong> staleness ("timelines 60 s stale, fine"), latency (p99 &lt; 200 ms), error budget (99.9%). The strongest experience-signal. <span style="color:var(--muted)">(09, 35)</span></li>
+    <li><strong>Every tradeoff as "X because Y; alternative costs Z."</strong> Never a bare product name. <span style="color:var(--muted)">(40)</span></li>
+    <li><strong>Truth vs derived:</strong> one source of truth; caches, search indexes, feeds, vector indexes are rebuildable projections fed async — losing them degrades, not destroys. <span style="color:var(--muted)">(20, 43)</span></li>
+    <li><strong>Idempotency is everywhere:</strong> retries, queues, event replay, agent tools all demand it. Ask of every handler: "safe to run twice?" <span style="color:var(--muted)">(22, 25)</span></li>
+    <li><strong>Pushback is direction:</strong> "what if a celebrity posts?" points at the intended deep dive. Welcome it. <span style="color:var(--muted)">(40)</span></li>
+    <li><strong>Defer complexity, name the trigger:</strong> "shard when the primary nears limits" beats premature sharding. <span style="color:var(--muted)">(16, 21)</span></li>
   </ul>
 
   <h2>The recurring idea</h2>
@@ -59,7 +59,7 @@
   </table>
 
   <div class="lesson-footer">
-    <p>Distilled from lessons <a href="../lessons/0001-the-life-of-a-request.html">0001</a>–<a href="../lessons/0046-capstone.html">0046</a>. Companions: <a href="glossary.html">glossary</a> · <a href="latency-numbers.html">latency card</a> · <a href="interview-runbook.html">interview runbook</a>.</p>
+    <p>Distilled from lessons <a href="../lessons/01-the-life-of-a-request.html">01</a>–<a href="../lessons/46-capstone.html">46</a>. Companions: <a href="glossary.html">glossary</a> · <a href="latency-numbers.html">latency card</a> · <a href="interview-runbook.html">interview runbook</a>.</p>
   </div>
 </main>
 </body>

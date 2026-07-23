@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 — Transactions &amp; ACID</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 14 · ~30 minutes · Systems Design · hands-on · Phase 2</span>
+  <h1>Transactions &amp; ACID</h1>
+  <p class="lede">One skill, learned today: wrap multi-step changes so they happen entirely or not at all — and name what can still go wrong when two of them race.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Every system that touches money, inventory, or ownership lives or dies on this lesson. Interviewers probe it with one word — "what if it crashes halfway?" — and production incidents probe it without asking. ACID is also the baseline that phase 3's distributed systems will painfully renegotiate.</p>
+  </div>
+
+  <h2>The problem: multi-step truth</h2>
+  <p>Transfer $50 from Ada to Grace = two writes: subtract from Ada, add to Grace. Crash between them and $50 has <em>vanished</em> — the database is internally consistent-looking but the books are wrong. A <a href="../reference/glossary.html#transaction">transaction</a> brackets the steps into one all-or-nothing unit:</p>
+  <pre><code>BEGIN;
+UPDATE accounts SET balance = balance - 50 WHERE name = 'ada';
+UPDATE accounts SET balance = balance + 50 WHERE name = 'grace';
+COMMIT;                -- both happen…
+-- or ROLLBACK;        -- …or neither does</code></pre>
+  <div id="flow"></div>
+
+  <h2>ACID, word by word</h2>
+  <table>
+    <tr><th>Letter</th><th>Promise</th><th>Concretely</th></tr>
+    <tr><td><strong>A</strong>tomicity</td><td>all or nothing</td><td>crash mid-transaction → automatic rollback; no half-transfers ever visible</td></tr>
+    <tr><td><strong>C</strong>onsistency</td><td>rules hold before and after</td><td>constraints (lesson 12) like <code>balance ≥ 0</code> can't be violated by a committed transaction</td></tr>
+    <tr><td><strong>I</strong>solation</td><td>concurrent transactions don't corrupt each other</td><td>the subtle one — see below</td></tr>
+    <tr><td><strong>D</strong>urability</td><td>committed = survives crash</td><td>the DB appends to a write-ahead log and fsyncs <em>before</em> saying "committed" <a href="https://www.sqlite.org/wal.html">[SQLite: WAL]</a></td></tr>
+  </table>
+
+  <h2>Isolation: where the bodies are buried</h2>
+  <p>Two transactions running "at once" are actually interleaved. The classic corruption is the <strong>lost update</strong>: T1 and T2 both read Ada's balance (100), both compute 100−50, both write 50 — one withdrawal evaporated. Databases offer isolation <em>levels</em>, a dial trading correctness against concurrency <a href="https://dataintensive.net/">[DDIA ch. 8]</a>:</p>
+  <table>
+    <tr><th>Level</th><th>Guards against</th><th>Notes</th></tr>
+    <tr><td>Read committed</td><td>seeing others' uncommitted writes</td><td>common default (Postgres); lost updates still possible!</td></tr>
+    <tr><td>Repeatable read / snapshot</td><td>data shifting under you mid-transaction</td><td>each transaction sees a frozen snapshot</td></tr>
+    <tr><td>Serializable</td><td>everything — as if run one-by-one</td><td>the gold standard; costs throughput, may abort+retry</td></tr>
+  </table>
+  <p>The working engineer's toolkit for lost updates, worth reciting: <strong>atomic single statements</strong> (<code>SET balance = balance - 50</code> — let the DB do the read-modify-write), <strong>SELECT … FOR UPDATE</strong> (lock the row first), or <strong>serializable + retry</strong>. Never read-in-app-then-write for contested values.</p>
+
+  <h2>Hands-on: watch atomicity work (5 min)</h2>
+  <pre><code>sqlite3 bank.db
+CREATE TABLE accounts (name TEXT PRIMARY KEY, balance INTEGER CHECK (balance >= 0));
+INSERT INTO accounts VALUES ('ada', 100), ('grace', 100);
+
+BEGIN;
+UPDATE accounts SET balance = balance - 50 WHERE name = 'ada';
+SELECT * FROM accounts;      -- ada 50 (inside the transaction's view)
+ROLLBACK;                    -- simulate a crash / abort
+SELECT * FROM accounts;      -- ada 100 — the subtraction never happened
+
+BEGIN;
+UPDATE accounts SET balance = balance - 200 WHERE name = 'ada';   -- CHECK fails!
+-- constraint violation; ROLLBACK; nothing changed. C in action.</code></pre>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Agent tool-use wants transactions and mostly can't have them: "book the flight, then charge the card" has no BEGIN/COMMIT spanning two external APIs. That's the distributed-transaction problem (lesson 27 — sagas, compensation), and it's why idempotency (02, 22) obsesses agent-infrastructure engineers. Knowing what single-database ACID gives you is how you notice when you've left it.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: DDIA 2nd ed., ch. 8 (Transactions) — the definitive treatment; the lost-update and isolation-level sections are interview gold. Quick free read: <a href="https://www.sqlite.org/transactional.html">SQLite — Transactional statements</a>.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="13-indexes.html">← 13 Indexes</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="15-replication.html">15 Replication →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "app", label: "App", sub: "transfer $50" },
+    { id: "db", label: "Database", sub: "accounts table" },
+    { id: "wal", label: "Write-ahead log", sub: "fsync = the moment of truth", row: 1 },
+  ],
+  links: [["app","db"], ["db","wal"]],
+  steps: [
+    { from: "app", to: "db", packet: "BEGIN",
+      caption: "The bracket opens. Changes made inside are provisional — visible to this transaction, invisible to everyone else." },
+    { from: "app", to: "db", packet: "ada −50",
+      caption: "First write, provisional. If we froze the DB now, other readers would still see ada = 100." },
+    { at: "db",
+      caption: "💥 Crash here — power cut mid-transfer. On restart, the DB finds an unfinished transaction in its log and rolls it back. Nobody ever sees the vanished $50. That's Atomicity." },
+    { from: "app", to: "db", packet: "BEGIN … ada −50, grace +50",
+      caption: "Take two, no crash this time. Both writes land provisionally. Now the commit:" },
+    { from: "db", to: "wal", packet: "append + fsync",
+      caption: "COMMIT means: append the changes to the write-ahead log and force it to disk. Only after the disk confirms does the DB reply 'committed'. That's Durability — survive-a-crash is literal." },
+    { from: "db", to: "app", packet: "COMMIT ok",
+      caption: "Both changes become visible to the world at one instant, together. All-or-nothing, rule-checked, crash-proof — and the I (isolation) is what keeps a SECOND simultaneous transfer from corrupting this one." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Crash after 'ada −50' but before COMMIT. After restart, Ada's balance is…",
+    options: [
+      "100, the transaction rolled back",
+      "50, the write had happened",
+      "75, the database splits differences",
+      "0, the account gets frozen",
+    ],
+    answer: 0,
+    explain: "Uncommitted work is undone on recovery — atomicity means the half-transfer never officially happened. Committed-then-crash would keep it (durability)." },
+  { prompt: "Two checkouts read stock=1, both compute 0, both write 0 — two sales of the last item. This bug is…",
+    options: [
+      "a lost update from weak isolation",
+      "a dirty read of uncommitted data",
+      "a durability failure after the crash",
+      "a constraint violation the CHECK caught",
+    ],
+    answer: 0,
+    explain: "The classic read-modify-write race: one transaction's update is overwritten by the other's stale computation. Fix: atomic UPDATE stock = stock − 1, row locks, or serializable." },
+  { prompt: "What precisely makes COMMIT durable?",
+    options: [
+      "log flushed to disk before acknowledging",
+      "changes copied to a replica first",
+      "the data cached in server memory",
+      "a checksum computed over the table",
+    ],
+    answer: 0,
+    explain: "The write-ahead log is fsynced BEFORE the DB says 'committed' — so the promise is backed by the disk, not by RAM that dies with the power. (Replicas help too — that's next lesson.)" },
+  { prompt: "Spaced review — Lesson 13: you add 4 indexes to accounts. Each committed UPDATE now must…",
+    options: [
+      "update every index B-tree too",
+      "rebuild the table's sorted order",
+      "invalidate the whole query cache",
+      "lock the entire table briefly",
+    ],
+    answer: 0,
+    explain: "Write amplification: the row plus all four B-trees. Index cost is paid at write time — inside the transaction, before COMMIT returns." },
+  { prompt: "Spaced review — Lesson 09: why is it fine that Redis (your cache) offers nothing like ACID?",
+    options: [
+      "caches hold copies, not truth",
+      "Redis is too fast to crash",
+      "TTLs replace transactional rollback semantics",
+      "caches only ever store numbers",
+    ],
+    answer: 0,
+    explain: "Cache entries are disposable derived data — lose one and you refill from the database, which IS transactional. Guarantees belong where the truth lives." },
+]);
+</script>
+</body>
+</html>

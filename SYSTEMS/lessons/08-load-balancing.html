@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 — Load Balancing</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 08 · ~25 minutes · Systems Design</span>
+  <h1>Load Balancing</h1>
+  <p class="lede">One skill, learned today: place a load balancer in a design, pick its algorithm, and narrate what happens when a server behind it dies.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Lesson 07 left a dangling question: requests "land on" A or B — <em>who decides?</em> The load balancer is the first box interviewers expect you to draw after the client, and "what does your LB do when a backend dies?" is a stock probe of whether you understand it or just draw it.</p>
+  </div>
+
+  <h2>What it is</h2>
+  <p>A <a href="../reference/glossary.html#load-balancer">load balancer</a> (LB) is a server that sits in front of your fleet, presents <strong>one address to the world</strong>, and spreads incoming requests across the healthy backends. Because it stands between clients and servers relaying traffic, it's a kind of <a href="../reference/glossary.html#reverse-proxy">reverse proxy</a> — nginx and HAProxy are the classic software LBs; every cloud sells one as a service <a href="https://www.cloudflare.com/learning/performance/what-is-load-balancing/">[Cloudflare: load balancing]</a>.</p>
+  <p>Two operating layers, named after the network stack — a distinction interviewers like:</p>
+  <table>
+    <tr><th></th><th>L4 (transport)</th><th>L7 (application)</th></tr>
+    <tr><td>Sees</td><td>IP addresses and ports only</td><td>the full HTTP request: path, headers, cookies</td></tr>
+    <tr><td>Can do</td><td>spread connections — very fast, dumb</td><td>route <code>/api/*</code> vs <code>/static/*</code> differently, terminate TLS, retry, compress</td></tr>
+    <tr><td>Use when</td><td>raw throughput, non-HTTP traffic</td><td>almost everything web — the usual default</td></tr>
+  </table>
+
+  <h2>Choosing the algorithm</h2>
+  <table>
+    <tr><th>Algorithm</th><th>How</th><th>Choose it when</th></tr>
+    <tr><td><strong>Round robin</strong></td><td>1, 2, 3, 1, 2, 3…</td><td>requests are cheap and uniform — the default</td></tr>
+    <tr><td>Weighted round robin</td><td>bigger servers get more turns</td><td>heterogeneous fleet</td></tr>
+    <tr><td><strong>Least connections</strong></td><td>send to the currently-idlest backend</td><td>request costs vary wildly (some take 10ms, some 10s)</td></tr>
+    <tr><td>IP hash</td><td>same client IP → same backend</td><td>you need stickiness — which, per lesson 07, you should design away, not lean on</td></tr>
+  </table>
+
+  <h2>Health checks: how the LB knows</h2>
+  <p>The LB's superpower is <em>not sending traffic to corpses</em>. It learns two ways: <strong>active</strong> checks — probe each backend every few seconds (<code>GET /health</code>, expect 200); <strong>passive</strong> checks — notice real requests failing or timing out. A failing backend is pulled from rotation, kept on probation, and re-added when checks pass again. Subtlety worth repeating in interviews: a health check answering 200 proves the process is <em>up</em>, not that it's <em>correct</em> — deeper checks (can it reach the DB?) catch more but can cause mass self-ejection when the DB blips. Watch a death in action:</p>
+  <div id="flow"></div>
+
+  <h2>Doesn't the LB just move the problem?</h2>
+  <p>Sharp question — the LB looks like a new single point of failure. Real deployments run <strong>at least two LBs</strong> with a shared virtual IP and failover, and DNS or anycast can spread across LB pairs. The full reliability story builds through phase 4; for now the interview-ready sentence is: "the LB is redundant itself — active-passive pair or DNS across multiple LBs."</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Inference fleets lean on <em>least connections</em>-style balancing more than round robin: one request generating 4,000 tokens occupies a GPU replica for many seconds, while another finishes in one — exactly the "wildly varying request cost" case. Some LLM routers go further and balance on queue depth or KV-cache pressure per replica: same idea, richer signal.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.cloudflare.com/learning/performance/what-is-load-balancing/">Cloudflare Learning — What is load balancing?</a> (10 min), then skim <a href="https://nginx.org/en/docs/http/load_balancing.html">nginx's load balancing doc</a> to see the algorithms as actual config.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="07-scaling-and-statelessness.html">← 07 Scaling &amp; statelessness</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="09-caching-i.html">09 Caching I →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Clients", sub: "many of them" },
+    { id: "lb", label: "Load balancer", sub: "one public address" },
+    { id: "s1", label: "Server 1", row: 1 },
+    { id: "s2", label: "Server 2", row: 1 },
+    { id: "s3", label: "Server 3", row: 1 },
+  ],
+  links: [["client","lb"], ["lb","s1"], ["lb","s2"], ["lb","s3"]],
+  steps: [
+    { from: "client", to: "lb", packet: "GET /notes",
+      caption: "All traffic arrives at the LB's single public address. Clients have no idea how many servers exist — that's the point." },
+    { from: "lb", to: "s1", packet: "→ round robin",
+      caption: "Round robin: first request to Server 1. The response returns through the LB. (Because our servers are stateless — lesson 07 — ANY choice is valid.)" },
+    { from: "lb", to: "s2", packet: "→ next in line",
+      caption: "Next request, Server 2. Meanwhile, every few seconds, the LB probes each backend: GET /health, expecting 200." },
+    { at: "s3",
+      caption: "💥 Server 3's process crashes. Two health checks in a row time out." },
+    { at: ["lb", "s3"],
+      caption: "The LB marks Server 3 unhealthy and pulls it from rotation. No client ever sees the corpse — requests just stop going there." },
+    { from: "lb", to: "s1", packet: "traffic → 1 and 2 only",
+      caption: "Traffic now splits across the two survivors, each absorbing ~50% more load (your capacity math from lesson 06 should include this headroom!)." },
+    { at: "s3",
+      caption: "Server 3 restarts (disposable, stateless — nothing was lost). Health checks pass again." },
+    { at: ["lb", "s1", "s2", "s3"],
+      caption: "The LB quietly re-adds it to rotation. Failure absorbed, capacity restored, zero human involvement. This choreography is what 'high availability' means concretely." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Requests to your API vary from 10 ms to 10 seconds of work. Best LB algorithm?",
+    options: [
+      "least connections, follow actual load",
+      "round robin, keep rotation perfectly fair",
+      "IP hash, keep users on servers",
+      "random choice, avoid any coordination",
+    ],
+    answer: 0,
+    explain: "Round robin counts requests, not cost — a server stuck with three 10-second requests keeps receiving more. Least connections tracks real occupancy." },
+  { prompt: "What can an L7 load balancer do that an L4 cannot?",
+    options: [
+      "route by path, header, or cookie",
+      "forward packets between two machines",
+      "spread connections across several backends",
+      "run health probes against backends",
+    ],
+    answer: 0,
+    explain: "L7 reads the HTTP request itself, so it can route /api vs /static, terminate TLS, retry. L4 sees only IPs and ports — the other three are common to both." },
+  { prompt: "A backend fails its health checks. The load balancer…",
+    options: [
+      "stops routing to it, probes on",
+      "restarts the machine over the network",
+      "returns 500 to every new client",
+      "moves its memory to other servers",
+    ],
+    answer: 0,
+    explain: "Pull from rotation, keep probing, re-add on recovery. The LB routes traffic — it doesn't manage machines (that's orchestration, lesson 33)." },
+  { prompt: "Spaced review — Lesson 07: the LB can freely pick ANY backend for ANY request only because the servers are…",
+    options: [
+      "stateless, truth lives outside them",
+      "identical, same hardware and specs",
+      "replicated, each has the data",
+      "containerized, packaged the same way",
+    ],
+    answer: 0,
+    explain: "Statelessness is the enabling property: no server privately remembers anything a request depends on, so routing is unconstrained." },
+  { prompt: "Spaced review — Lesson 05: the LB adds one hop inside the datacenter. Latency cost, roughly?",
+    options: [
+      "well under one millisecond added",
+      "around fifty milliseconds added",
+      "around ten milliseconds added",
+      "zero, proxies don't add latency",
+    ],
+    answer: 0,
+    explain: "An intra-datacenter round trip is ~0.5 ms — negligible against a ~70 ms WAN hop. This is why nobody minds adding an LB but everyone minds an extra WAN call." },
+]);
+</script>
+</body>
+</html>

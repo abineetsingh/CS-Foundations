@@ -86,7 +86,7 @@
     <tr id="outbox"><td><strong>Outbox pattern</strong></td><td>Write the event as a row in the <em>same local transaction</em> as the business change; a relay publishes it at-least-once. Closes the commit-then-crash-before-publish gap.</td></tr>
     <tr id="load-shedding"><td><strong>Load shedding</strong></td><td>Near capacity, reject excess early and cheaply (fast 503/429) — by priority — rather than fail everything slowly. Breaks retry storms.</td></tr>
     <tr id="monolith"><td><strong>Monolith</strong></td><td>One deployable unit (× N stateless copies). Function calls, shared transactions, one deploy train. The right default for young systems.</td></tr>
-    <tr id="microservices"><td><strong>Microservices</strong></td><td>Independently deployed services, each owning its data, talking over the network. Buys team autonomy; costs 0022–0027 on every internal edge. Shared database = distributed monolith.</td></tr>
+    <tr id="microservices"><td><strong>Microservices</strong></td><td>Independently deployed services, each owning its data, talking over the network. Buys team autonomy; costs 22–27 on every internal edge. Shared database = distributed monolith.</td></tr>
     <tr id="api-gateway"><td><strong>API gateway</strong></td><td>The fleet's one front door: auth, rate limiting, routing. Clients never learn your org chart.</td></tr>
   </table>
 
@@ -105,7 +105,7 @@
   </table>
 
   <div class="lesson-footer">
-    <p>Built by lessons <a href="../lessons/0001-the-life-of-a-request.html">0001</a>–<a href="../lessons/0046-capstone.html">0046</a>. Companions: <a href="latency-numbers.html">latency card</a> · <a href="patterns-cheatsheet.html">patterns cheatsheet</a> · <a href="interview-runbook.html">interview runbook</a>.</p>
+    <p>Built by lessons <a href="../lessons/01-the-life-of-a-request.html">01</a>–<a href="../lessons/46-capstone.html">46</a>. Companions: <a href="latency-numbers.html">latency card</a> · <a href="patterns-cheatsheet.html">patterns cheatsheet</a> · <a href="interview-runbook.html">interview runbook</a>.</p>
   </div>
 </main>
 </body>

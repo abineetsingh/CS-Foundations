@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 06 — Back-of-Envelope Capacity Estimation</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .calc { border: 1px solid var(--rule); border-radius: 8px; padding: 1.1rem 1.3rem; background: #fdfdf4; margin: 1.5rem 0; }
+  .calc label { display: block; font-size: 0.9rem; margin: 0.5rem 0 0.15rem; }
+  .calc input { font-family: "SF Mono", Menlo, monospace; font-size: 0.95rem; padding: 0.3rem 0.5rem; border: 1px solid #bbb; border-radius: 5px; width: 9rem; }
+  .calc output { display: block; margin-top: 0.9rem; font-family: "SF Mono", Menlo, monospace; font-size: 0.9rem; white-space: pre-line; border-top: 1px solid var(--rule); padding-top: 0.8rem; }
+</style>
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 06 · ~25 minutes · Systems Design</span>
+  <h1>Back-of-Envelope Capacity Estimation</h1>
+  <p class="lede">One skill, learned today: turn "10 million users" into QPS, storage, and bandwidth numbers — in about ninety seconds, out loud.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Minutes 5–10 of a system design interview are usually estimation. Its real purpose isn't the numbers — it's that the numbers <em>drive the design</em>: 500 QPS needs one good database; 500,000 QPS needs sharding and caches. Interviewers watch whether your arithmetic changes your architecture <a href="https://github.com/donnemartin/system-design-primer#back-of-the-envelope-calculations">[System Design Primer]</a>.</p>
+  </div>
+
+  <h2>The four formulas</h2>
+  <p>Everything reduces to these, plus the courage to round aggressively (this is <em>estimation</em> — 86,400 is 10⁵, π is 3):</p>
+  <table>
+    <tr><th>Quantity</th><th>Formula</th><th>Notes</th></tr>
+    <tr><td><a href="../reference/glossary.html#qps">QPS</a> (avg)</td><td>daily actions ÷ 10⁵ s</td><td>seconds per day ≈ 86,400 ≈ 10⁵</td></tr>
+    <tr><td>QPS (peak)</td><td>avg × 2–10</td><td>traffic is bursty; state your multiplier</td></tr>
+    <tr><td>Storage</td><td>items/day × size × days kept × replicas</td><td>replicas ×3 is the usual default (lesson 15)</td></tr>
+    <tr><td>Bandwidth</td><td>QPS × payload size</td><td>separate read vs write paths</td></tr>
+  </table>
+  <p>Two more habits: establish the <strong>read:write ratio</strong> first (most systems are 10:1 to 100:1 read-heavy — it decides where the pressure is), and keep units honest: <code>KB→MB→GB→TB</code> is ×1000 each step; a character is a byte; an id is 8 bytes; a timestamp is 8 bytes.</p>
+
+  <h2>Worked example: Twitter-lite</h2>
+  <pre><code>Given: 10 M DAU. Each user reads 100 tweets/day, posts 1/day. Tweet ≈ 280 chars + metadata ≈ 0.5 KB. Keep 5 years.
+
+Writes:  10M × 1 post   = 10⁷/day  ÷ 10⁵s ≈ 100 QPS avg   → ~500 peak    (easy)
+Reads:   10M × 100 reads = 10⁹/day ÷ 10⁵s ≈ 10,000 QPS avg → ~50,000 peak (the hard part)
+         read:write = 100:1 → design for reads: caches, replicas
+
+Storage: 10⁷ tweets/day × 0.5 KB = 5 GB/day
+         × 365 × 5 yrs ≈ 9 TB × 3 replicas ≈ ~27 TB       (modest! text is small)
+
+Read bandwidth: 10⁴ QPS × 0.5 KB ≈ 5 MB/s avg              (trivial — unless images enter)</code></pre>
+  <p>Notice the conclusions falling out: writes are easy, reads need help (caching, lesson 09; replicas, 15), storage is fine until images arrive (object storage, 19). <em>That's</em> estimation doing its job.</p>
+
+  <h2>Try it: the envelope machine</h2>
+  <p>Play with the inputs and watch the architecture pressure shift. Then redo one by hand — the skill is manual.</p>
+  <div class="calc">
+    <label>Daily active users <input id="dau" type="number" value="10000000"></label>
+    <label>Reads per user per day <input id="reads" type="number" value="100"></label>
+    <label>Writes per user per day <input id="writes" type="number" value="1"></label>
+    <label>Item size (KB) <input id="size" type="number" value="0.5" step="0.1"></label>
+    <output id="out"></output>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: the <a href="https://github.com/donnemartin/system-design-primer#back-of-the-envelope-calculations">System Design Primer's estimation section</a> and its linked exercises (15 min). The <a href="../reference/latency-numbers.html">latency card</a> now carries an estimation crib too.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="05-latency-numbers.html">← 05 Latency numbers every architect knows</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="07-scaling-and-statelessness.html">07 Scaling &amp; statelessness →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+(function () {
+  var ids = ["dau", "reads", "writes", "size"];
+  function fmt(n) {
+    if (n >= 1e12) return (n / 1e12).toFixed(1) + " T";
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + " B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + " M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + " K";
+    return n.toFixed(n < 10 ? 1 : 0);
+  }
+  function bytes(kb) {
+    if (kb >= 1e9) return (kb / 1e9).toFixed(1) + " TB";
+    if (kb >= 1e6) return (kb / 1e6).toFixed(1) + " GB";
+    if (kb >= 1e3) return (kb / 1e3).toFixed(1) + " MB";
+    return kb.toFixed(1) + " KB";
+  }
+  function calc() {
+    var dau = +document.getElementById("dau").value || 0;
+    var r = +document.getElementById("reads").value || 0;
+    var w = +document.getElementById("writes").value || 0;
+    var s = +document.getElementById("size").value || 0;
+    var readQps = dau * r / 1e5, writeQps = dau * w / 1e5;
+    var perDayKB = dau * w * s;
+    var fiveYrKB = perDayKB * 365 * 5 * 3;
+    var bwKBs = readQps * s;
+    var verdict = readQps < 1000 ? "one solid database handles this"
+      : readQps < 20000 ? "add caching + read replicas"
+      : "caches, replicas AND sharding territory";
+    document.getElementById("out").textContent =
+      "read QPS:  " + fmt(readQps) + " avg → ~" + fmt(readQps * 5) + " peak\n" +
+      "write QPS: " + fmt(writeQps) + " avg → ~" + fmt(writeQps * 5) + " peak\n" +
+      "storage:   " + bytes(perDayKB) + "/day → " + bytes(fiveYrKB) + " over 5 yrs (×3 replicas)\n" +
+      "read bandwidth: " + bytes(bwKBs) + "/s\n" +
+      "reads → " + verdict;
+  }
+  ids.forEach(function (id) { document.getElementById(id).addEventListener("input", calc); });
+  calc();
+})();
+
+renderQuiz("quiz", [
+  { prompt: "5 M users each performing 20 actions/day. Average QPS, roughly?",
+    options: [
+      "about one thousand queries per second",
+      "about one hundred queries per second",
+      "about ten thousand queries per second",
+      "about one million queries per second",
+    ],
+    answer: 0,
+    explain: "5M × 20 = 10⁸ actions/day ÷ 10⁵ s = 10³ = ~1,000 QPS. The whole trick is 86,400 ≈ 10⁵." },
+  { prompt: "Why establish the read:write ratio before anything else?",
+    options: [
+      "it decides where design pressure goes",
+      "it determines the total storage bill",
+      "interviewers always ask it verbatim first",
+      "writes are impossible to estimate alone",
+    ],
+    answer: 0,
+    explain: "A 100:1 read-heavy system needs caches and replicas; a write-heavy one needs different machinery (queues, sharding). The ratio picks your battles." },
+  { prompt: "1 M new items/day at 1 KB each. Storage per year, before replication?",
+    options: [
+      "roughly 365 GB in a year",
+      "roughly 36 GB in a year",
+      "roughly 3.65 TB in a year",
+      "roughly 365 TB in a year",
+    ],
+    answer: 0,
+    explain: "1M × 1 KB = 1 GB/day × 365 ≈ 365 GB/yr. (×3 replicas ≈ 1.1 TB.) Text-sized data is almost always smaller than intuition says." },
+  { prompt: "Spaced review — Lesson 05: your API in Virginia serves a user in Sydney. The floor on response time is set by…",
+    options: [
+      "the physical round trip distance",
+      "the database's random read speed",
+      "the server's request parsing time",
+      "the JSON body's encoded size",
+    ],
+    answer: 0,
+    explain: "~200+ ms of speed-of-light round trip dwarfs microsecond-scale server work. Physics first — it's why CDNs and multi-region exist." },
+  { prompt: "Spaced review — Lesson 04: your notes API keeps truth in notes.db, so the API process itself is now…",
+    options: [
+      "disposable, restart it without loss",
+      "durable, it persists its own memory",
+      "replicated, copies run on standby",
+      "stateless, it holds no data ever",
+    ],
+    answer: 0,
+    explain: "Disposable — kill and restart freely; truth survives on disk. ('Stateless' is close but overclaims: it still holds caches and connections; the precise term arrives next lesson.)" },
+]);
+</script>
+</body>
+</html>

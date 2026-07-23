@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 12 — Linked Lists I</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 12 · Phase 1 · ~25 minutes</span>
+  <h1>Linked Lists I: Nodes, Traversal, and the Dummy Trick</h1>
+  <p class="lede">Today's skill: build and walk a chain of nodes confidently — pointers instead of indices.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Linked lists are the simplest <em>pointer-based</em> structure — the training ground for the reference-juggling that trees and graphs demand. Interviews use them to check whether you can manipulate references without losing nodes. They're also half of the LRU cache (Lesson 43), a genuine systems structure.</p>
+  </div>
+
+  <h2>The structure</h2>
+  <p>No contiguous block. Each element is a free-floating <strong>node</strong> that knows its value and where the next node lives:</p>
+  <pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+# 3 → 1 → 4 → None
+head = ListNode(3, ListNode(1, ListNode(4)))</code></pre>
+  <p>You hold only <code>head</code>. Everything else is reachable by following <code>.next</code>. The costs invert Lesson <a href="./03-arrays-and-python-lists.html">03</a>'s array table:</p>
+  <table>
+    <tr><th>Operation</th><th>Array (list)</th><th>Linked list</th></tr>
+    <tr><td>Access by index</td><td><code>O(1)</code></td><td><code>O(n)</code> — must walk</td></tr>
+    <tr><td>Insert/delete at front</td><td><code>O(n)</code></td><td><code>O(1)</code></td></tr>
+    <tr><td>Insert/delete after a node you hold</td><td><code>O(n)</code></td><td><code>O(1)</code> — rewire two pointers</td></tr>
+    <tr><td>Find a value</td><td><code>O(n)</code></td><td><code>O(n)</code></td></tr>
+    <tr><td>Memory layout</td><td>contiguous, cache-friendly</td><td>scattered, pointer-chasing</td></tr>
+  </table>
+
+  <h2>The two core moves</h2>
+  <h3>Traversal — the while loop you'll write 100 times</h3>
+  <pre><code>current = head
+while current:                 # runs until current is None
+    print(current.val)
+    current = current.next     # THE step: move the pointer, don't index</code></pre>
+
+  <h3>Insertion/deletion — rewiring</h3>
+  <pre><code># insert new_node AFTER node:            # delete the node AFTER node:
+new_node.next = node.next                 # node.next = node.next.next
+node.next = new_node</code></pre>
+  <p>Order matters: in insertion, point the new node out <em>before</em> pointing anything at it, or the rest of the chain is orphaned. Losing the chain is <em>the</em> classic linked-list bug.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-rewire"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const cfg = { nodes: { "3": [60, 50], "1": [175, 50], "4": [290, 50], "7": [175, 135] },
+      edges: [], directed: true, width: 360, height: 180 };
+    const fr = [
+      { edges: [["3", "1"], ["1", "4"]], hl: { "7": "dim" },
+        note: "The list 3 &#8594; 1 &#8594; 4. Goal: insert 7 after node 1 — O(1), by rewiring exactly two pointers." },
+      { edges: [["3", "1"], ["1", "4"]], hl: { "7": "hl" },
+        note: "Node 7 is created. It floats: nothing points at it, it points at nothing. The chain is untouched so far." },
+      { edges: [["3", "1"], ["1", "4"], ["7", "4"]], ehl: { "7-4": "good" }, hl: { "7": "hl" },
+        note: "Step 1 — <code>new_node.next = node.next</code>: point 7 at the rest of the chain FIRST, while node 1 still remembers where it is." },
+      { edges: [["3", "1"], ["1", "7"], ["7", "4"]], ehl: { "1-7": "good", "7-4": "good" }, hl: { "7": "good" },
+        note: "Step 2 — <code>node.next = new_node</code>. Done: 3 &#8594; 1 &#8594; 7 &#8594; 4. Two pointer writes, O(1), nothing lost." },
+      { edges: [["3", "1"], ["1", "7"]], hl: { "4": "bad", "7": "bad" }, ehl: { "1-7": "bad" },
+        note: "THE BUG, replayed with the lines swapped: <code>node.next = new_node</code> ran first — now NOBODY remembers node 4. The next line reads 7's own address (self-loop), and 4 is orphaned forever." }
+    ];
+    Viz.player("viz-rewire", { caption: "insert-after rewiring — why the order of two lines matters", view: Viz.graph(cfg), frames: fr });
+  })();
+  </script>
+
+  <h2>The dummy-node trick</h2>
+  <p>Deleting the head is a special case (nothing points at it). Kill the special case by planting a fake node before the real head:</p>
+  <pre><code>def delete_all(head, val):
+    dummy = ListNode(0, head)         # sits before the real head
+    node = dummy
+    while node.next:
+        if node.next.val == val:
+            node.next = node.next.next   # unlink — works even for the head
+        else:
+            node = node.next
+    return dummy.next                  # the (possibly new) real head</code></pre>
+  <p>Like prefix[0] = 0 in Lesson 09, the dummy is <strong>off-by-one armor</strong> — one line that deletes an entire class of edge-case bugs. Use it whenever the head might change.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>The array-vs-linked-list trade-off — <em>contiguity is fast to scan, pointers are fast to restructure</em> — is a hardware truth that shapes ML systems: tensors are contiguous precisely because GPUs hate pointer-chasing. When you meet PagedAttention (vLLM), you'll recognize it instantly: KV-cache memory managed in linked blocks, accepting pointer indirection to avoid O(n) reallocation. Same trade, billion-dollar setting.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Singly Linked Lists chapter</a>.</li>
+    <li>Problems: "Design Linked List" (build it yourself once — it forces every edge case), "Remove Linked List Elements".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Draw boxes and arrows on paper for every problem this week — no exceptions. Pointer bugs are visual bugs. Ask Claude Code for ASCII diagrams any time a rewiring step is unclear.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="11-queues-and-deques.html">← 11 Queues &amp; deques</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="13-linked-lists-ii.html">13 Linked lists II →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Why is reading the 500th element O(n) in a linked list but O(1) in an array?",
+    options: [
+      "nodes are scattered in memory — only .next knows where the next one is",
+      "linked lists store elements in reverse order",
+      "arrays cache their most recent accesses",
+      "Python implements node access with a hidden scan of a list"
+    ],
+    answer: 0,
+    explain: "No contiguity → no address arithmetic. The only route to node 500 is 500 hops of pointer-following."
+  },
+  {
+    code: "# insert new_node after node — spot the bug:\nnode.next = new_node\nnew_node.next = node.next",
+    prompt: "What goes wrong?",
+    options: [
+      "new_node.next becomes new_node itself — the rest of the chain is lost",
+      "nothing — both orders produce the same result",
+      "node is deleted from the chain",
+      "it raises an AttributeError on the second line"
+    ],
+    answer: 0,
+    explain: "Line 1 overwrites node.next before line 2 reads it — so new_node.next = new_node (a self-loop), and everything after node is orphaned. Rewire the new node FIRST."
+  },
+  {
+    code: "node.next = node.next.next",
+    prompt: "This line, run where node.next is the target, performs…",
+    options: [
+      "O(1) deletion of the node after node",
+      "O(n) deletion — the chain must be re-linked",
+      "insertion of a duplicate node",
+      "a swap of two adjacent nodes"
+    ],
+    answer: 0,
+    explain: "Bypass the target and it's unreachable — deleted. Two pointer reads, one write: O(1). (Contrast: array deletion shifts n elements.)"
+  },
+  {
+    prompt: "The dummy node exists to…",
+    options: [
+      "make head-changing operations the same as any other operation",
+      "mark the end of the list in place of None",
+      "speed traversal up by one hop",
+      "store the list's length for O(1) len()"
+    ],
+    answer: 0,
+    explain: "With a node guaranteed to sit before the head, 'delete the head' stops being special. Return dummy.next as the new head. Reach for it whenever the head might change."
+  },
+  {
+    prompt: "Review from 11: BFS uses a deque rather than a list because…",
+    options: [
+      "popleft() is O(1) while list.pop(0) is O(n)",
+      "deques keep their elements sorted",
+      "lists cannot store tuples of coordinates",
+      "deques deduplicate automatically"
+    ],
+    answer: 0,
+    explain: "BFS dequeues from the front constantly; a list would pay a shift each time, turning O(V+E) traversals into quadratic ones."
+  }
+]);
+</script>
+</body>
+</html>

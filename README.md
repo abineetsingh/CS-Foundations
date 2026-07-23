@@ -17,7 +17,7 @@ The `DSA/` course contains 45 lessons covering:
 - Dynamic programming and greedy techniques
 - Interview communication and practice strategy
 
-Start with [DSA/CURRICULUM.md](./DSA/CURRICULUM.md).
+Browse the [DSA table of contents](./DSA/00-table_of_contents.html) or read [DSA/CURRICULUM.md](./DSA/CURRICULUM.md).
 
 ### Systems Design
 
@@ -30,7 +30,7 @@ The `SYSTEMS/` course contains 46 lessons covering:
 - Production infrastructure and observability
 - Architecture interviews and AI system design
 
-Start with [SYSTEMS/CURRICULUM.md](./SYSTEMS/CURRICULUM.md).
+Browse the [Systems table of contents](./SYSTEMS/00-table_of_contents.html) or read [SYSTEMS/CURRICULUM.md](./SYSTEMS/CURRICULUM.md).
 
 ### Application Security and Security Engineering
 
@@ -52,7 +52,7 @@ Every Security lesson includes a security-boundary animation, an immediate-feedb
 
 The Security course is grounded in OWASP, NIST, PortSwigger, OpenSSF, official cloud and platform documentation, and production AI security guidance from Datadog, OpenAI, Anthropic, MCP, MITRE, and the OWASP GenAI project.
 
-Start with [SECURITY/CURRICULUM.md](./SECURITY/CURRICULUM.md). The course mission is documented in [SECURITY/MISSION.md](./SECURITY/MISSION.md), and the full source catalog is in [SECURITY/RESOURCES.md](./SECURITY/RESOURCES.md).
+Browse the [Security table of contents](./SECURITY/00-table_of_contents.html) or read [SECURITY/CURRICULUM.md](./SECURITY/CURRICULUM.md). The course mission is documented in [SECURITY/MISSION.md](./SECURITY/MISSION.md), and the full source catalog is in [SECURITY/RESOURCES.md](./SECURITY/RESOURCES.md).
 
 #### Security labs
 
@@ -66,17 +66,19 @@ Hands-on work currently uses three formats:
 
 No application server or package installation is required for the lessons themselves.
 
-1. Choose a course and read its `CURRICULUM.md`.
-2. Open the first lesson in that course's `lessons/` directory.
+1. Choose a course and open its `00-table_of_contents.html` page.
+2. Start with lesson `01` or select another lesson from the table of contents.
 3. Work through the explanation and animation before answering the quiz.
 4. Complete the practice exercise when one is provided.
-5. Continue through the lessons in numerical order.
+5. Use the previous, table of contents, curriculum, and next links in each lesson footer to move through the course.
 6. Revisit missed quiz concepts after one day and again after one week.
+
+Lesson filenames use two-digit numbers: `01` through `09`, followed by `10`, `11`, and so on. Every lesson footer includes the author and the month and year it was written.
 
 You can open a lesson from Finder or with a command such as:
 
 ```bash
-open SECURITY/lessons/0001-security-is-policy-under-pressure.html
+open SECURITY/lessons/01-security-is-policy-under-pressure.html
 ```
 
 The courses are designed for regular practice rather than a single pass. A pace of one lesson per day leaves enough time for spaced repetition for better understanding and learning outcomes. 
@@ -86,14 +88,17 @@ The courses are designed for regular practice rather than a single pass. A pace 
 ```text
 .
 ├── DSA/
+│   ├── 00-table_of_contents.html
 │   ├── CURRICULUM.md
 │   ├── lessons/
 │   └── assets/
 ├── SYSTEMS/
+│   ├── 00-table_of_contents.html
 │   ├── CURRICULUM.md
 │   ├── lessons/
 │   └── assets/
 └── SECURITY/
+    ├── 00-table_of_contents.html
     ├── CURRICULUM.md
     ├── LABS.md
     ├── MISSION.md

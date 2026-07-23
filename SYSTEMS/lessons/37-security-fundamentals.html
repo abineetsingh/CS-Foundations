@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 37 — Security Fundamentals</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 37 · ~30 minutes · Systems Design · Phase 4</span>
+  <h1>Security Fundamentals</h1>
+  <p class="lede">One skill, learned today: place the security layers every backend needs — authentication, authorization, TLS, secrets — and name the habits that block the common attacks.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Interviews increasingly end designs with "how is this secured?", and a five-sentence fluent answer is the difference between "engineer" and "liability." This is defensive fundamentals — the hygiene layer every production system owes its users — not offense; depth beyond this lives with security teams.</p>
+  </div>
+
+  <h2>Authentication vs authorization — the 401/403 divide, industrialized</h2>
+  <p>You met the distinction in lesson 02; now the machinery. <strong>Authentication</strong> ("who are you?") for APIs is usually one of: <strong>session cookies</strong> (server-held session in Redis — your 07 externalized state — referenced by an opaque cookie) or <strong>signed tokens (JWTs)</strong>: the server signs a blob of claims (<code>user_id, expiry, roles</code>); any server can <em>verify the signature without shared state</em> — statelessness for identity <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Authentication">[MDN: HTTP auth]</a>. The tradeoff to recite: tokens can't be revoked before expiry (they're valid by math, not by lookup) — so keep them short-lived and pair with refresh tokens; sessions revoke instantly but cost a store lookup. <strong>OAuth2/OIDC</strong> is the delegation protocol behind "Sign in with Google" — know its shape (redirect → consent → code → token), not its RFCs.</p>
+  <p><strong>Authorization</strong> ("are you allowed?") is where real-world breaches concentrate — especially <em>object-level</em> checks: <code>GET /notes/17</code> must verify note 17 <em>belongs to this caller</em>, not just that the caller is logged in. Skipping that check (guessing ids: 17, 18, 19…) is <strong>IDOR</strong> — #1 in the OWASP API Top 10 <a href="https://owasp.org/API-Security/editions/2023/en/0x11-t10/">[OWASP API Top 10]</a>. The habit: authorize <em>every</em> object access, in one shared code path, close to the data.</p>
+
+  <h2>The transport and the perimeter</h2>
+  <div id="flow"></div>
+  <p>The layers in the flow, compressed: <strong>TLS everywhere</strong> (the S in HTTPS — encryption + server identity via certificates; terminate at the LB/gateway per 08, and modern zero-trust shops encrypt service-to-service too with mTLS). <strong>The gateway</strong> (30) authenticates once, rate-limits (28), and strips malice before requests reach services. <strong>Validate at the boundary</strong> — Pydantic (03) plus parameterized SQL (04) already made you injection-resistant; the generalized creed is <em>never interpolate untrusted input into anything that gets executed</em> (SQL, shell, HTML). <strong>Secrets</strong> (DB passwords, API keys) never live in code or images (32 images get pulled and inspected!) — they come from a secrets manager (Vault, cloud KMS) injected at runtime, rotated regularly. <strong>Least privilege</strong>: each service's credentials can touch only what it needs — so a compromised notes service can't read the payments database (bulkheads, 36, for permissions).</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>LLM systems add a genuinely new boundary problem: <strong>prompt injection</strong> — untrusted content (a webpage an agent reads) smuggling instructions into the model's input. It's the injection family (never mix untrusted data with trusted instructions) but without a clean escaping fix, which is why agent security leans on the <em>old</em> tools: least-privilege tool permissions, sandboxed execution (32's containers), human confirmation for irreversible actions. Your API-security instincts transfer straight into agent design — and AI labs interview on exactly this bridge.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://owasp.org/API-Security/editions/2023/en/0x11-t10/">OWASP API Security Top 10</a> (20 min) — the field's consensus list of how APIs actually get breached; you now have the vocabulary for all ten.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="36-reliability-patterns.html">← 36 Reliability patterns</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="38-cloud-building-blocks.html">38 Cloud building blocks →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "client", label: "Client", sub: "TLS 🔒" },
+    { id: "gw", label: "Gateway", sub: "authn · rate limit" },
+    { id: "notes", label: "Notes svc", sub: "authorize per object", row: 1 },
+    { id: "db", label: "Database", sub: "least-privilege creds", row: 1 },
+    { id: "vault", label: "Secrets mgr", sub: "rotated creds", row: 1 },
+  ],
+  links: [["client","gw"], ["gw","notes"], ["notes","db"], ["notes","vault"]],
+  steps: [
+    { from: "client", to: "gw", packet: "HTTPS + JWT",
+      caption: "TLS wraps the wire: nobody between client and gateway can read or tamper. The request carries a JWT — signed claims: user 42, expires in 15 min." },
+    { at: "gw",
+      caption: "The gateway verifies the JWT's SIGNATURE — no session lookup, any node can do it (stateless identity). Expired/absent → 401. It also rate-limits (28) and rejects malformed requests. Authentication happens once, here." },
+    { from: "gw", to: "notes", packet: "GET /notes/17 (user 42)",
+      caption: "Inside the perimeter, the request reaches the notes service with a verified identity attached. Now the check that separates real security from theater:" },
+    { at: "notes",
+      caption: "AUTHORIZATION, object-level: does note 17 BELONG to user 42? Not 'is 42 logged in' — 'is 42 allowed THIS note'. Its absence is IDOR: attacker iterates /notes/18, /19… reading strangers' data. 403 if not theirs. Every object, every time, one shared code path." },
+    { from: "notes", to: "vault", packet: "fetch DB credential",
+      caption: "To query, the service needs a DB password — fetched at runtime from the secrets manager, never baked into code, git, or the container image (images leak — 32). Rotated on schedule; a leak has a short half-life." },
+    { from: "notes", to: "db", packet: "SELECT … (params ?)",
+      caption: "The query goes parameterized (04 — injection blocked), over an internal-TLS connection, using credentials that can ONLY touch the notes tables. If this service is ever compromised, the blast radius is its own data — least privilege is bulkheads for permissions." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "A logged-in user fetches /orders/9931 — someone else's order — and it works. This failure is…",
+    options: [
+      "missing object-level authorization, IDOR",
+      "broken authentication at the gateway",
+      "a SQL injection in the handler",
+      "an expired token accepted anyway",
+    ],
+    answer: 0,
+    explain: "Authentication passed (they ARE logged in); the missing step was 'does 9931 belong to THIS user'. Object-level authorization gaps are the most-breached API flaw in the wild." },
+  { prompt: "JWTs vs server-side sessions — the core trade:",
+    options: [
+      "stateless verification versus instant revocation",
+      "stronger encryption versus faster lookups",
+      "shorter tokens versus smaller cookies",
+      "browser support versus mobile support",
+    ],
+    answer: 0,
+    explain: "A JWT verifies by signature alone — no store, any node (scales beautifully) — but stays valid until expiry even if you want it dead. Sessions cost a lookup and die on command. Short-lived JWT + refresh token is the common middle." },
+  { prompt: "Why must secrets never be baked into container images?",
+    options: [
+      "images get pulled, shared, inspected",
+      "images cannot store encrypted strings",
+      "secrets change the image checksum",
+      "registries strip environment variables out",
+    ],
+    answer: 0,
+    explain: "An image is a distributable artifact — cached on nodes, pushed to registries, downloadable by anyone with pull access, forever. Inject secrets at runtime from a manager; rotate them." },
+  { prompt: "Least-privilege service credentials primarily limit…",
+    options: [
+      "the blast radius after a compromise",
+      "the query load on the database",
+      "the number of secrets to rotate",
+      "which developers can deploy services",
+    ],
+    answer: 0,
+    explain: "WHEN a service is popped (assume when, not if — 36's mindset applied to attackers), its credentials define what the attacker gets. Notes-service creds that can't read payments = a contained incident, not a company-ending one." },
+  { prompt: "Spaced review — Lesson 02: the gateway returns 401 vs 403 — the correct split is…",
+    options: [
+      "401 unauthenticated, 403 unauthorized",
+      "401 unauthorized, 403 unauthenticated",
+      "401 for users, 403 for services",
+      "401 expired tokens, 403 missing tokens",
+    ],
+    answer: 0,
+    explain: "401: 'who are you?' — no/invalid identity, gateway's call. 403: 'I know you, and no' — identity fine, permission denied, the service's object-level call. Twelve lessons later, the same pair, now load-bearing." },
+]);
+</script>
+</body>
+</html>

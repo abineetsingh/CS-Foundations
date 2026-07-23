@@ -10,7 +10,7 @@
 <main>
   <span class="kicker">Reference · DSA Practice</span>
   <h1>Python Interview Toolkit</h1>
-  <p class="lede">The night-before sheet: imports, idioms, and gotchas. Companion to <a href="../lessons/0042-python-toolkit.html">Lesson 0042</a>.</p>
+  <p class="lede">The night-before sheet: imports, idioms, and gotchas. Companion to <a href="../lessons/42-python-toolkit.html">Lesson 42</a>.</p>
 
   <h2>Imports</h2>
   <pre><code>from collections import Counter, defaultdict, deque
@@ -73,14 +73,14 @@ fs = [lambda i=i: i for i in range(3)]  # fix: bind at def time
 -7 // 2 == -4  (floors toward -inf);  int(-7 / 2) == -3 (truncates)</code></pre>
 
   <h2>Templates worth having cold</h2>
-  <pre><code># binary search, leftmost (bisect_left by hand) — Lesson 0014
+  <pre><code># binary search, leftmost (bisect_left by hand) — Lesson 14
 lo, hi = 0, len(a)
 while lo &lt; hi:
     mid = (lo + hi) // 2
     if a[mid] &lt; target: lo = mid + 1
     else: hi = mid
 
-# BFS — Lessons 0020/0028
+# BFS — Lessons 20/28
 q, visited = deque([start]), {start}
 while q:
     node = q.popleft()
@@ -88,7 +88,7 @@ while q:
         if nb not in visited:
             visited.add(nb); q.append(nb)
 
-# backtracking — Lesson 0026
+# backtracking — Lesson 26
 def backtrack(i):
     if done(i): result.append(path[:]); return
     for choice in choices(i):
@@ -96,7 +96,7 @@ def backtrack(i):
         backtrack(i + 1)
         path.pop()
 
-# top-k — Lesson 0023
+# top-k — Lesson 23
 heap = nums[:k]; heapq.heapify(heap)
 for x in nums[k:]:
     if x &gt; heap[0]: heapq.heapreplace(heap, x)</code></pre>

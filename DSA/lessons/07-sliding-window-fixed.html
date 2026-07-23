@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 07 — Sliding Window (Fixed Size)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 07 · Phase 1 · ~20 minutes</span>
+  <h1>Sliding Window, Fixed Size</h1>
+  <p class="lede">Today's skill: compute something over every length-k window of an array in O(n), not O(n·k) — by updating instead of recomputing.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Sliding window is two pointers' sibling: both pointers move the <em>same</em> direction, framing a contiguous chunk. "Every subarray of size k" questions are interview staples, and the incremental-update idea generalizes far beyond arrays.</p>
+  </div>
+
+  <h2>The wasteful way</h2>
+  <p><em>Find the maximum sum of any k consecutive elements.</em></p>
+  <pre><code>def max_window_slow(arr, k):
+    best = float("-inf")
+    for i in range(len(arr) - k + 1):
+        best = max(best, sum(arr[i:i+k]))   # O(k) work, n times
+    return best</code></pre>
+  <p>Each window is summed from scratch: <strong>O(n·k)</strong>. But adjacent windows share k−1 elements — recomputing them is pure waste.</p>
+
+  <h2>The window update</h2>
+  <p>When the window slides one step right, exactly one element enters and one leaves:</p>
+  <pre><code>def max_window(arr, k):
+    window = sum(arr[:k])            # first window: O(k), once
+    best = window
+    for i in range(k, len(arr)):
+        window += arr[i]             # new element enters
+        window -= arr[i - k]         # old element leaves
+        best = max(best, window)
+    return best</code></pre>
+  <p><strong>O(n) time, O(1) space.</strong> The general recipe: keep a <em>running summary</em> of the window (sum, count-dict, max-so-far) that can be updated in O(1) when one element enters and one leaves.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-window"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const a = [2, 1, 5, 1, 3, 2], k = 3, fr = [];
+    let w = a.slice(0, k).reduce((x, y) => x + y, 0), best = w;
+    fr.push({ cells: a.slice(), win: [0, k - 1],
+      note: `First window summed from scratch — the ONLY full sum we ever do. window = ${w}, best = ${w}.` });
+    for (let i = k; i < a.length; i++) {
+      w += a[i] - a[i - k];
+      const nb = w > best; best = Math.max(best, w);
+      fr.push({ cells: a.map((v, j) => j === i ? { v: v, cls: "good" } : (j === i - k ? { v: v, cls: "bad" } : v)),
+        win: [i - k + 1, i],
+        note: `Slide: <span style="color:#1a7f37">+${a[i]} enters</span>, <span style="color:#b42318">&#8722;${a[i - k]} leaves</span> — two O(1) updates, zero re-summing. window = ${w}, best = ${best}${nb ? " (new best!)" : ""}.` });
+    }
+    fr.push({ cells: a.map((v, j) => (j >= 2 && j <= 4) ? { v: v, cls: "good" } : { v: v, cls: "dim" }),
+      note: "Answer: 9, window [5,1,3]. n&#8722;k slides &#215; O(1) each = O(n) — versus O(n&#183;k) for recomputing every window from scratch." });
+    Viz.player("viz-window", { caption: "max sum of any k=3 window — update, don't recompute", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>What summaries slide well?</h2>
+  <table>
+    <tr><th>Window summary</th><th>Enter/leave update</th><th>Used for</th></tr>
+    <tr><td>Sum / average</td><td><code>+new − old</code></td><td>Max sum subarray of size k</td></tr>
+    <tr><td>Counts (dict)</td><td>increment / decrement</td><td>Anagram-in-string detection</td></tr>
+    <tr><td>Max (needs a deque)</td><td>Lesson 11 preview</td><td>Sliding window maximum</td></tr>
+  </table>
+  <p>Note what does <em>not</em> slide in O(1): the median, or "is the window sorted" — some summaries can't absorb a departure cheaply. Recognizing which is which is the skill.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>A 1-D <strong>convolution</strong> is literally a fixed-size window sliding over a signal, and the same recompute-vs-update economics govern fast conv implementations. <strong>Sliding-window attention</strong> (Mistral, Longformer) restricts each token to attend to a fixed-size window — turning the O(n²) attention of Lesson 01 into O(n·k). Your interview pattern is a frontier-model architecture decision.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Sliding Window</a>, "Best Time to Buy and Sell Stock" video.</li>
+    <li>Problems: "Maximum Average Subarray I", "Best Time to Buy and Sell Stock".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Ask Claude Code: "give me three window summaries and I'll say which slide in O(1)" — a two-minute drill that cements the concept.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="06-two-pointers.html">← 06 Two pointers</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="08-sliding-window-variable.html">08 Sliding window, variable size →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "The slow version recomputes each window's sum. The fix works because…",
+    options: [
+      "adjacent windows overlap in all but one entering and one leaving element",
+      "summing a slice is O(1) when the slice is small",
+      "the maximum can only occur in the first or last window",
+      "sorting the array first makes every window's sum available"
+    ],
+    answer: 0,
+    explain: "window += arr[i]; window -= arr[i-k]. Two O(1) updates replace an O(k) recompute — that's the whole pattern."
+  },
+  {
+    code: "window = sum(arr[:k])\nfor i in range(k, len(arr)):\n    window += arr[i] - arr[i - k]\n    best = max(best, window)",
+    prompt: "Time and space complexity?",
+    options: ["O(n) time, O(1) space", "O(n·k) time, O(1) space", "O(n) time, O(k) space", "O(n log n) time, O(1) space"],
+    answer: 0,
+    explain: "One O(k) initialization, then O(1) per step for n−k steps: O(n) total. Only scalar state: O(1) space."
+  },
+  {
+    prompt: "Which window summary can NOT be updated in O(1) when an element leaves?",
+    options: [
+      "The median of the window",
+      "The sum of the window",
+      "A dict of value counts",
+      "The number of zeros in the window"
+    ],
+    answer: 0,
+    explain: "Sum, counts, and zero-count all absorb ±1 updates. The median may shift to any nearby value when one element leaves — it needs heavier machinery (two heaps, Lesson 24)."
+  },
+  {
+    code: "\"Given a string s and string p, find all start indices\nof p's anagrams in s.\"",
+    prompt: "Which combination of tools fits?",
+    options: [
+      "Fixed window of len(p) + sliding count-dict comparison",
+      "Two converging pointers from both ends of s",
+      "Sort both strings and compare them once",
+      "A hash set of every substring of s"
+    ],
+    answer: 0,
+    explain: "Anagram = same letter counts (Lesson 05) and len(p) fixes the window size. Slide the window, update counts ±1, compare dicts."
+  },
+  {
+    prompt: "Review from 06: converging two pointers require sorted (or symmetric) data because…",
+    options: [
+      "the comparison must prove a pointer's element can be safely discarded",
+      "unsorted arrays cannot be indexed from both ends",
+      "the pattern's O(n) bound only holds for sorted input",
+      "duplicate values break the convergence guarantee"
+    ],
+    answer: 0,
+    explain: "The pattern's power is elimination: 'no pair using this element can work.' Order is what makes that argument sound."
+  }
+]);
+</script>
+</body>
+</html>

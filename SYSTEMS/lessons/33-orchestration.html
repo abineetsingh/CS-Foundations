@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 33 — Orchestration: What Kubernetes Actually Does</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 33 · ~25 minutes · Systems Design · Phase 4</span>
+  <h1>Orchestration: What Kubernetes Actually Does</h1>
+  <p class="lede">One skill, learned today: explain the four jobs of an orchestrator — and the declare-and-reconcile idea that powers them — without drowning in Kubernetes vocabulary.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Kubernetes runs a huge share of the world's backends and every serious ML platform; "K8s" fluency is assumed in infra conversations at AI labs. But interviews test the <em>concepts</em>, not YAML trivia — and the core concept (reconciliation loops) is one of the most transferable ideas in all of systems… including agent design.</p>
+  </div>
+
+  <h2>The gap it fills</h2>
+  <p>You can run one container (32). Production runs <em>thousands</em>, across hundreds of machines. Someone must decide which machine runs what, restart the dead, scale the busy, and route traffic to wherever things landed. Doing this by hand is a full-time job for a large team; an <a href="../reference/glossary.html#orchestration">orchestrator</a> (Kubernetes, ECS, Nomad) is that team, automated <a href="https://kubernetes.io/docs/concepts/overview/">[K8s overview]</a>. Four jobs:</p>
+  <table>
+    <tr><th>Job</th><th>Meaning</th><th>Built on lessons</th></tr>
+    <tr><td><strong>Scheduling</strong></td><td>"this container needs 2 CPU + 4 GB" → find it a machine (bin-packing the fleet)</td><td>32's cgroup requests</td></tr>
+    <tr><td><strong>Self-healing</strong></td><td>container crashes → restart; machine dies → reschedule its containers elsewhere</td><td>health checks (08), cattle (07)</td></tr>
+    <tr><td><strong>Scaling</strong></td><td>CPU high or queue deep → more replicas; quiet → fewer</td><td>stateless fleets (07), queue-depth signals (23)</td></tr>
+    <tr><td><strong>Service discovery + LB</strong></td><td>containers move constantly, so a stable name (<code>notes-api</code>) always resolves to the current healthy set</td><td>DNS (01) + LB (08), automated</td></tr>
+  </table>
+
+  <h2>The big idea: declare, then reconcile</h2>
+  <p>You do <em>not</em> tell Kubernetes what to do. You declare a desired state — "12 replicas of <code>notes-api:v2</code>, each 2 CPU" — into its store (etcd — yes, the consensus store from 26, guarding the cluster's one precious truth). Then <strong>reconciliation loops</strong> run forever: <em>observe actual state → diff against desired → act to close the gap</em>. A machine dying isn't an emergency requiring a runbook; it's just a new diff (observed 9, desired 12 → start 3). Failure handling stops being an event and becomes the steady state of the system <a href="https://kubernetes.io/docs/concepts/architecture/controller/">[K8s: controllers]</a>:</p>
+  <div id="flow"></div>
+  <p>Minimal vocabulary that makes K8s docs readable — deliberately just four words: a <strong>Pod</strong> is the unit of running (one or more containers scheduled together); a <strong>Deployment</strong> declares "N replicas of this pod spec" (and handles rolling updates — 34); a <strong>Service</strong> is the stable name + load balancing across a pod set; a <strong>Node</strong> is a machine in the fleet. Everything else is elaboration.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>GPU scheduling is the orchestration boss level — the scheduler must pack jobs onto scarce H100s, gang-schedule (a 512-GPU training job needs all 512 <em>simultaneously</em>), and preempt low-priority work for launches. And notice the deeper rhyme: <em>observe → diff → act toward a declared goal</em> is also a decent description of an agent loop. Reconciliation thinking is the transferable asset — Kubernetes is just its most industrialized deployment.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://kubernetes.io/docs/concepts/overview/">Kubernetes — Overview</a> + <a href="https://kubernetes.io/docs/concepts/architecture/controller/">Controllers</a> (25 min). Read for the model, not the YAML — with today's four words and one loop, the rest of the docs unfold when needed.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="32-containers.html">← 32 Containers</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="34-cicd-and-safe-releases.html">34 CI/CD &amp; safe releases →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "you", label: "You", sub: "declare desired state" },
+    { id: "cp", label: "Control plane", sub: "etcd + controllers" },
+    { id: "n1", label: "Node 1", sub: "4 pods", row: 1 },
+    { id: "n2", label: "Node 2", sub: "4 pods", row: 1 },
+    { id: "n3", label: "Node 3", sub: "4 pods", row: 1 },
+  ],
+  links: [["you","cp"], ["cp","n1"], ["cp","n2"], ["cp","n3"]],
+  steps: [
+    { from: "you", to: "cp", packet: "desired: 12 × v2",
+      caption: "You declare: '12 replicas of notes-api:v2, 2 CPU each.' That sentence — not commands — is stored in etcd (26: the cluster's tiny precious truth, behind consensus). Your job is done." },
+    { from: "cp", to: "n1", packet: "schedule 4 pods",
+      caption: "The scheduler bin-packs: each node has capacity; pods land where they fit. 4-4-4 across three nodes. Kubelet on each node pulls the image (32) and starts them." },
+    { at: ["n1", "n2", "n3"],
+      caption: "Steady state: reconciliation loops forever compare observed (12 running) with desired (12). Diff: zero. The loops idle, watching. This watching IS the system." },
+    { at: "n3",
+      caption: "💥 Node 3's hardware dies — four pods gone. Nobody is paged. It's Tuesday." },
+    { from: "cp", to: "n1", packet: "observed 8 ≠ 12 → +2",
+      caption: "The loop sees the diff (8 ≠ 12) and acts: schedule 4 replacements onto surviving nodes' spare capacity. Meanwhile the Service stops routing to dead pods instantly (health checks, 08 — automated)." },
+    { at: ["n1", "n2"],
+      caption: "Ninety seconds later: 12 running again, traffic flowing, zero human actions. Failure wasn't an event with a runbook; it was a diff with a loop. That inversion — declare and reconcile — is the whole lesson." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "The declarative model means you tell Kubernetes…",
+    options: [
+      "the end state, not the steps",
+      "each command in exact order",
+      "which machines run which containers",
+      "when to restart failed processes",
+    ],
+    answer: 0,
+    explain: "'12 replicas of v2' — the WHAT. Controllers derive the how, forever, including recovery. Imperative scripts do steps once; declared state is enforced continuously." },
+  { prompt: "A node dies at 3am and service continues without pages. The mechanism:",
+    options: [
+      "reconciliation closing the replica diff",
+      "a hot standby node holding copies",
+      "the load balancer restarting the node",
+      "etcd replaying the lost containers",
+    ],
+    answer: 0,
+    explain: "Observed 8 ≠ desired 12 → schedule 4 elsewhere. Self-healing is just the reconcile loop treating death as a diff. (Stateless pods — 07 — are what make replacements interchangeable.)" },
+  { prompt: "Why does cluster state live in etcd specifically?",
+    options: [
+      "cluster truth needs consensus-grade agreement",
+      "etcd stores container images efficiently",
+      "key-value lookups are the fastest",
+      "etcd ships inside every kernel",
+    ],
+    answer: 0,
+    explain: "'What is desired, who owns what' is the tiny critical fact set — split-brain over it (two schedulers fighting) would be chaos. Lesson 26's small-strong-core, deployed exactly as predicted." },
+  { prompt: "Containers get rescheduled to different machines constantly. Clients still find them via…",
+    options: [
+      "a stable service name, resolved dynamically",
+      "static IP addresses assigned per pod",
+      "broadcasting requests to every node",
+      "a config file updated by operators",
+    ],
+    answer: 0,
+    explain: "Service discovery: 'notes-api' always resolves to the current healthy pod set — DNS + LB (01, 08) maintained by the reconciler instead of by humans." },
+  { prompt: "Spaced review — Lesson 23: the autoscaler adds workers when queue depth grows. In today's vocabulary, queue depth is the…",
+    options: [
+      "observed state driving a reconcile",
+      "desired state declared by operators",
+      "diff between replicas and nodes",
+      "health check for the queue",
+    ],
+    answer: 0,
+    explain: "Autoscaling is a reconcile loop whose observed signal is depth (or CPU) and whose actuator is the replica count. Same loop shape, different sensor." },
+]);
+</script>
+</body>
+</html>

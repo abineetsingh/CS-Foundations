@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 39 — Incident Thinking</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 39 · ~30 minutes · Systems Design · Phase 4 capstone</span>
+  <h1>Incident Thinking</h1>
+  <p class="lede">One skill, learned today: run the incident lifecycle — detect, mitigate, then learn blamelessly — and read real postmortems the way engineers read game film.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Everything in phases 1–4 eventually fails anyway — and how organizations respond separates the great ones from the lucky ones. Interviewers at infrastructure-serious companies ask "tell me about debugging a production issue" and "walk me through this outage"; postmortem literacy is also the single best free education in systems design that exists. This closes phase 4.</p>
+  </div>
+
+  <h2>The lifecycle: mitigate first, understand later</h2>
+  <p>The incident begins when an SLO-burn alert pages (35) — not when a user tweets, if you've built well. From there, a discipline that feels backwards until you've lived it <a href="https://sre.google/sre-book/managing-incidents/">[Google SRE: managing incidents]</a>:</p>
+  <table>
+    <tr><th>Stage</th><th>The move</th><th>The trap it avoids</th></tr>
+    <tr><td><strong>Detect</strong></td><td>alert on symptoms users feel (SLO burn), severity-classified (SEV1: product down → SEV3: degraded)</td><td>alerting on every internal blip → pager fatigue → real pages ignored</td></tr>
+    <tr><td><strong>Mitigate</strong></td><td><em>stop the bleeding without understanding it</em>: roll back the last deploy (34 — it's the cause ~most of the time), flip the feature flag, shed load (28), fail over (15)</td><td>debugging root cause while users burn — diagnosis is for daylight; mitigation is for now</td></tr>
+    <tr><td><strong>Coordinate</strong></td><td>one <strong>incident commander</strong> directing; others investigate/communicate; status updates on a cadence</td><td>ten engineers in a channel all restarting different things (making the timeline unreadable and sometimes the outage worse)</td></tr>
+    <tr><td><strong>Learn</strong></td><td>the blameless postmortem, below — where the real value is extracted</td><td>"human error, be more careful" → nothing changes → same outage next quarter</td></tr>
+  </table>
+
+  <h2>The blameless postmortem</h2>
+  <p>A postmortem documents: timeline, impact (users × minutes, in SLO-budget terms — 35), <strong>contributing causes</strong> (plural — never one "root cause"; real failures are chains, as 36 showed), what went well/poorly, and <strong>action items with owners</strong>. Blameless is the load-bearing word: if the analysis lands on "engineer X made a mistake," it isn't finished — <em>why did the system let one mistake become an outage?</em> Missing canary? No rate limit? Alert that didn't fire? Humans err at a constant rate; systems determine the blast radius. Blame optimizes for hiding information; blamelessness optimizes for surfacing it — and the postmortem's action items are how reliability actually compounds <a href="https://sre.google/sre-book/postmortem-culture/">[Google SRE: postmortem culture]</a>.</p>
+  <div id="flow"></div>
+
+  <h2>Hands-on: read two real postmortems (15 min)</h2>
+  <p>Your ongoing-practice habit starts now. Read these two classics — with your full toolkit, they read like annotated case law:</p>
+  <ul>
+    <li><a href="https://github.blog/news-insights/company-news/oct21-post-incident-analysis/">GitHub, Oct 2018</a>: 43 seconds of network partition (18!) → split-brain-ish divergence between datacenters (26!) → 24 hours of careful reconciliation. Watch for: why they chose consistency over availability during recovery.</li>
+    <li><a href="https://blog.cloudflare.com/cloudflare-outage/">Cloudflare, Jul 2019</a>: one regex → CPU exhaustion → global outage in minutes. Watch for: the deploy-pipeline gap (34) and how a "safe" config change wasn't.</li>
+  </ul>
+  <p>For each, extract on paper: the trigger, the propagation chain (which 36 defense was missing?), the mitigation, and two action items you'd have filed. That extraction ritual — trigger → chain → missing defense → fix — is the weekly practice from here on.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>AI products add novel incident classes — a bad model rollout (quality regression rather than errors: harder to alert on; eval-based canaries are the answer, 34), prompt-injection exploitation in the wild (37), a runaway agent burning budget in a loop (rate limits + kill switches, 28's vocabulary). Same lifecycle, same blameless discipline, newer failure taxonomy — labs run postmortems for model incidents exactly like infra ones.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://sre.google/sre-book/postmortem-culture/">Google SRE book — Postmortem Culture</a> (20 min, free). Then bookmark <a href="https://github.com/danluu/post-mortems">danluu's postmortem collection</a> — your weekly reading queue for the rest of the course.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="38-cloud-building-blocks.html">← 38 Cloud building blocks</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="40-interview-algorithm.html">40 The 45-minute interview algorithm →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "alert", label: "14:02 page", sub: "SLO burn: 6h to zero" },
+    { id: "ic", label: "Incident cmd", sub: "one directing voice" },
+    { id: "mitigate", label: "Mitigate", sub: "rollback · flag · shed", row: 1 },
+    { id: "diagnose", label: "Diagnose", sub: "daylight, calmly", row: 1 },
+    { id: "pm", label: "Postmortem", sub: "blameless, actioned", row: 1 },
+  ],
+  links: [["alert","ic"], ["ic","mitigate"], ["mitigate","diagnose"], ["diagnose","pm"]],
+  steps: [
+    { from: "alert", to: "ic", packet: "SEV2 declared",
+      caption: "14:02 — burn-rate alert pages: at current error rates, the month's budget dies by dinner. On-call declares SEV2 and takes incident command: one person directing, others investigating, updates every 15 min. Roles beat heroics." },
+    { from: "ic", to: "mitigate", packet: "what changed? → rollback",
+      caption: "First question — not 'why is it broken' but 'WHAT CHANGED?' A deploy went out at 13:55 (34's statistics point here first). Roll it back. No debugging, no blame, no curiosity yet." },
+    { at: "mitigate",
+      caption: "14:11 — metrics recover (35 watches the burn rate flatten). Nine minutes of impact. The bug is still unexplained and STILL IN THE CODE — and that's fine: users are safe, which was the entire job of now." },
+    { from: "mitigate", to: "diagnose", packet: "tomorrow, with traces",
+      caption: "Next day, calmly: traces (35) show the new code path N+1-querying (05) under a specific input. Staging never had that data shape — which is itself a finding about staging, not about the engineer." },
+    { from: "diagnose", to: "pm", packet: "5 contributing causes",
+      caption: "The postmortem lists contributing causes, plural: the query bug, staging's unrepresentative data, canary skipped for a 'trivial' change, no query-count alert, generous DB timeouts (22). One mistake, five system gaps that let it become nine user-minutes." },
+    { at: "pm",
+      caption: "Action items, each with an owner: mandatory canaries (34), staging data refresh, per-endpoint query-count metric (35), tighter timeouts (22). Next quarter, someone else's mistake meets a system that shrugs it off. That compounding IS reliability engineering." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Mid-incident, the discipline is mitigate-before-diagnose because…",
+    options: [
+      "user harm compounds while you investigate",
+      "root causes are unknowable during outages",
+      "rollbacks erase the diagnostic evidence",
+      "commanders forbid engineers from debugging",
+    ],
+    answer: 0,
+    explain: "Every minute of diagnosis is a minute of burn. Rollback/flag/shed stops the harm without understanding; understanding happens in daylight with logs and traces intact." },
+  { prompt: "The incident commander's first diagnostic question:",
+    options: [
+      "what changed most recently here",
+      "which engineer owns this service",
+      "how many users are affected",
+      "when did we last restart",
+    ],
+    answer: 0,
+    explain: "Change causes most outages (34), so 'what changed' — deploys, flags, config, dependencies — finds the mitigation (undo it!) fastest. Impact sizing matters, but for severity, not for the fix." },
+  { prompt: "A postmortem concluding 'root cause: engineer error; remediation: more care' is rejected because…",
+    options: [
+      "it fixes nothing about the system",
+      "engineers cannot legally be named",
+      "outages never involve human mistakes",
+      "care improves with public accountability",
+    ],
+    answer: 0,
+    explain: "Humans err at a constant rate — that's a design input, not a finding. The question is why one error became an outage: the missing canary, alert, limit, or timeout. Blame also teaches people to hide facts, starving the analysis." },
+  { prompt: "Alerting on SLO burn rate rather than every internal error exists to prevent…",
+    options: [
+      "pager fatigue drowning real incidents",
+      "budgets expiring before month's end",
+      "duplicate alerts across the services",
+      "SEV levels inflating over time",
+    ],
+    answer: 0,
+    explain: "Pages that don't demand action train on-call to ignore pages — the most dangerous state a team can reach. Symptom-based, budget-weighted alerts keep the pager trustworthy (35)." },
+  { prompt: "Spaced review — Lesson 36: 'one slow dependency took the whole product down' — the postmortem's contributing causes MUST include…",
+    options: [
+      "missing breakers, bulkheads, and fallbacks",
+      "the dependency's engineers deploying carelessly",
+      "insufficient CPU on the gateway",
+      "users retrying more than expected",
+    ],
+    answer: 0,
+    explain: "The dependency's slowness was the trigger; the PROPAGATION was the system's fault — absent circuit breakers, shared thread pools, no degraded mode. Postmortems assign causes to the chain, not just the spark." },
+]);
+</script>
+</body>
+</html>

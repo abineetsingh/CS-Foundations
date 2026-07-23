@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 10 — Caching II: Invalidation, Stampedes &amp; CDNs</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 10 · ~25 minutes · Systems Design</span>
+  <h1>Caching II: Invalidation, Stampedes &amp; CDNs</h1>
+  <p class="lede">One skill, learned today: name the two ways caches betray you — staleness and stampedes — and the standard defenses for each. Plus: the cache that wraps the planet.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"There are only two hard things in computer science: cache invalidation and naming things" — the joke survives because it's true. Interviewers who see a cache on your whiteboard <em>will</em> ask "what happens when the data changes?" and "what happens when a hot key expires?" Today you get real answers.</p>
+  </div>
+
+  <h2>Problem 1: staleness — and invalidation strategies</h2>
+  <p>The note gets edited; the cache still holds the old copy. Your options, in the order to reach for them:</p>
+  <table>
+    <tr><th>Strategy</th><th>How</th><th>Cost</th></tr>
+    <tr><td><strong>TTL only</strong></td><td>let entries expire; tolerate bounded staleness</td><td>simplest; staleness up to TTL — fine for feeds, fatal for balances</td></tr>
+    <tr><td><strong>Invalidate on write</strong></td><td>on update: write DB, then <code>DELETE note:17</code> from cache</td><td>next reader misses and refills fresh; small race windows remain under concurrency</td></tr>
+    <tr><td>Write-through</td><td>on update: write DB <em>and</em> overwrite the cache entry</td><td>cache always warm; you now maintain two writes and their ordering</td></tr>
+    <tr><td>Event-driven purge</td><td>data changes emit events; consumers purge keys</td><td>the scalable version — needs queues (lesson 23)</td></tr>
+  </table>
+  <p>The interview-ready default: <strong>cache-aside + TTL + delete-on-write</strong> — and note the golden detail that you <em>delete</em> rather than update the cache on writes, letting the next read repopulate; updating in place invites subtle write-ordering races <a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/">[AWS Builders' Library]</a>.</p>
+
+  <h2>Problem 2: the stampede</h2>
+  <p>A hot key's TTL expires. In the next 100 ms, 5,000 readers all miss <em>simultaneously</em> — and all 5,000 charge into the database with the same query. The DB, sized for 1% miss traffic (lesson 09), tips over; its slowness causes more timeouts and retries; the failure spreads. Also called <a href="../reference/glossary.html#thundering-herd">thundering herd</a> or dog-piling. Watch it, then the fix:</p>
+  <div id="flow"></div>
+  <p>The defenses, usually combined:</p>
+  <ul>
+    <li><strong>Request coalescing / locking:</strong> only one miss per key is allowed through to the DB; the other 4,999 wait ~10 ms for it to fill the cache.</li>
+    <li><strong>TTL jitter:</strong> expire at 300s ± random(30s), so many keys loaded together don't all expire together.</li>
+    <li><strong>Stale-while-revalidate:</strong> keep serving the expired copy briefly while one background fetch refreshes it — users get speed, DB gets one query <a href="https://web.dev/articles/stale-while-revalidate">[web.dev]</a>.</li>
+  </ul>
+
+  <h2>The CDN: caching, weaponized geographically</h2>
+  <p>A <a href="../reference/glossary.html#cdn">CDN</a> (content delivery network — Cloudflare, CloudFront, Akamai) is a fleet of cache servers in hundreds of cities. Users hit the nearest <a href="../reference/glossary.html#edge">edge</a> location (~10 ms away) instead of your origin (~100+ ms away); the edge serves from cache or fetches from origin once and reuses it for every nearby user <a href="https://www.cloudflare.com/learning/cdn/what-is-a-cdn/">[Cloudflare: what is a CDN]</a>. Two facts to carry:</p>
+  <ul>
+    <li>It's the same machinery you just learned — hit ratios, TTLs, purges — just placed at planetary scale. You control it with the <code>Cache-Control</code> response header (<code>max-age</code>, <code>no-store</code>…) <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching">[MDN: HTTP caching]</a>.</li>
+    <li>Static assets (images, JS, video) are the classic cargo; modern CDNs also cache whole API responses and HTML where staleness allows. In interviews: any "serve images/video globally" requirement should trigger the word CDN within seconds.</li>
+  </ul>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>Model-serving fleets fight stampedes too: a cold model or an evicted KV-cache prefix plays the role of the expired hot key, and a burst of identical prompts plays the herd. The fixes rhyme: coalesce identical in-flight work, keep popular prefixes warm, spread expiries. Cache thinking transfers whole.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.cloudflare.com/learning/cdn/what-is-a-cdn/">Cloudflare — What is a CDN?</a> (10 min), then <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching">MDN's HTTP caching guide</a> for the headers that drive it all.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="09-caching-i.html">← 09 Caching I</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="11-the-v1-architecture.html">11 The v1 architecture diagram →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "clients", label: "5,000 readers", sub: "same hot note" },
+    { id: "app", label: "API fleet" },
+    { id: "cache", label: "Redis", sub: "note:17 TTL just died", row: 1 },
+    { id: "db", label: "Database", sub: "sized for 1% misses", row: 1 },
+  ],
+  links: [["clients","app"], ["app","cache"], ["app","db"]],
+  steps: [
+    { at: "cache",
+      caption: "T+0 ms: note:17 — read 5,000 times a second — quietly expires. The cache is now a trapdoor." },
+    { from: "clients", to: "app", packet: "5,000 × GET /notes/17",
+      caption: "The next tick of traffic arrives as usual. Nothing looks wrong yet." },
+    { from: "app", to: "cache", packet: "5,000 × GET → MISS",
+      caption: "All of them miss at once. Cache-aside says: go fetch from the database. All 5,000 obey." },
+    { from: "app", to: "db", packet: "5,000 identical SELECTs",
+      caption: "💥 The stampede. A database sized for ~50 miss-QPS receives 5,000 identical queries in one breath. Latency spikes; connection pools drain; timeouts trigger retries; retries add MORE load." },
+    { at: ["cache", "db"],
+      caption: "Now the fix. Rewind to the expiry — this time with request coalescing (a per-key lock) in the app layer." },
+    { from: "app", to: "db", packet: "ONE SELECT (lock holder)",
+      caption: "First miss takes the key's lock and goes to the DB alone. The other 4,999 requests wait ~10 ms on the lock instead of stampeding." },
+    { from: "app", to: "cache", packet: "SET note:17 (jittered TTL)",
+      caption: "Lock-holder refills the cache — with TTL 300s ± 30s jitter so co-loaded keys never expire in unison again." },
+    { from: "cache", to: "app", packet: "4,999 × HIT",
+      caption: "The waiters read the fresh entry. DB cost of the whole event: one query. Stampede, coalescing, jitter — say those three words together in interviews." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "On UPDATE, the recommended cache move is delete-the-key, not overwrite-the-value. Why?",
+    options: [
+      "refill-on-read avoids write-ordering races",
+      "delete operations are faster than writes",
+      "overwriting resets the TTL incorrectly",
+      "caches cannot hold updated values twice",
+    ],
+    answer: 0,
+    explain: "Two concurrent updates can overwrite the cache in the wrong order, freezing stale data in place. Deleting lets the next reader repopulate from the source of truth." },
+  { prompt: "TTL jitter exists to prevent…",
+    options: [
+      "many keys expiring at one moment",
+      "entries surviving beyond their freshness",
+      "clocks drifting between cache servers",
+      "keys colliding inside the hashmap",
+    ],
+    answer: 0,
+    explain: "Keys loaded together expire together — synchronized trapdoors. Randomizing expiry spreads the misses across time." },
+  { prompt: "Which data is SAFE to serve stale-while-revalidate?",
+    options: [
+      "a trending-posts list, seconds old",
+      "an account balance mid-withdrawal request",
+      "an auth check on an admin",
+      "inventory during a flash sale checkout",
+    ],
+    answer: 0,
+    explain: "Trending lists tolerate seconds of staleness invisibly. Balances, auth, and checkout inventory are correctness-critical — staleness there is a bug, not a tradeoff." },
+  { prompt: "A CDN cuts latency for a São Paulo user of your Virginia-hosted site mainly by…",
+    options: [
+      "answering from an edge nearby",
+      "compressing responses smaller over distance",
+      "upgrading the user's network route",
+      "moving your database to Brazil",
+    ],
+    answer: 0,
+    explain: "The edge in São Paulo serves the cached copy ~10 ms away, amputating the ~150 ms intercontinental hop — lesson 05's table, applied geographically." },
+  { prompt: "Spaced review — Lesson 09: your cache hit ratio rises 90% → 99%. Database read traffic…",
+    options: [
+      "drops by a further ten-fold",
+      "drops by nine percent exactly",
+      "stays equal, latency improves only",
+      "doubles, because refills grow costly",
+    ],
+    answer: 0,
+    explain: "The DB sees (1−h): 10% → 1% of reads — 10× less. Hit-ratio gains compound, which is why the last few percent are fought for." },
+]);
+</script>
+</body>
+</html>

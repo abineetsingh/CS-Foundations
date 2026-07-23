@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 08 — Sliding Window (Variable Size)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 08 · Phase 1 · ~25 minutes</span>
+  <h1>Sliding Window, Variable Size</h1>
+  <p class="lede">Today's skill: find the longest (or shortest) contiguous stretch satisfying a condition — grow the right edge, shrink the left edge, never look back.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>"Longest substring/subarray such that…" is one of the most common medium-difficulty question shapes. It's also your first taste of <strong>invariant-driven</strong> code — the style of reasoning that separates pattern-matching from actually understanding, and that interviews at research labs probe hard.</p>
+  </div>
+
+  <h2>The shape</h2>
+  <p>Unlike Lesson 07's fixed k, here the window stretches and contracts to stay <em>valid</em>:</p>
+  <pre><code>left = 0
+for right in range(len(s)):        # grow: admit s[right]
+    # ... update window state with s[right] ...
+    while window_is_invalid():     # shrink until valid again
+        # ... remove s[left] from window state ...
+        left += 1
+    best = max(best, right - left + 1)   # window [left..right] is valid</code></pre>
+  <p>The <strong>invariant</strong>: after the inner while, the window is always valid. Since <code>right</code> advances n times and <code>left</code> only ever advances (at most n times total, across the whole run), the total work is <strong>O(n)</strong> — even though there's a loop inside a loop. This surprises everyone once: nesting isn't automatically O(n²) (Lesson 01's rule 2 assumes the inner loop restarts; here it never does).</p>
+
+  <h2>Worked example: Longest Substring Without Repeating Characters</h2>
+  <pre><code>def longest_unique(s):
+    seen = set()          # chars currently in the window
+    left = 0
+    best = 0
+    for right in range(len(s)):
+        while s[right] in seen:      # invalid: duplicate incoming
+            seen.remove(s[left])     # evict from the left
+            left += 1
+        seen.add(s[right])
+        best = max(best, right - left + 1)
+    return best</code></pre>
+  <p>Trace <code>"abcabcbb"</code>: the window stretches to <code>abc</code>, hits the second <code>a</code>, evicts the first <code>a</code>, and keeps sliding. Every character enters the set once and leaves at most once → O(n) time, O(min(n, alphabet)) space. Notice the toolkit stacking: a <em>set</em> (Lesson 05) is the window summary (Lesson 07) driven by two same-direction pointers (Lesson 06).</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-vwin"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const s = "abcabcbb", fr = [];
+    const view = Viz.group(Viz.sub("arr", Viz.array), Viz.sub("set", Viz.kv));
+    const seen = new Set();
+    let l = 0, best = 0;
+    function cellsF(r, evict, adm) {
+      return s.split("").map((ch, j) => {
+        if (j === evict) return { v: ch, cls: "bad" };
+        if (j === adm) return { v: ch, cls: "good" };
+        if (j < l || j > r) return { v: ch, cls: "dim" };
+        return ch;
+      });
+    }
+    function setF() {
+      return { label: "seen", pairs: Array.from(seen).map(k => ({ k: k })) };
+    }
+    for (let r = 0; r < s.length; r++) {
+      while (seen.has(s[r])) {
+        fr.push({ arr: { cells: cellsF(r, l, null), win: [l, r - 1], ptrs: { [l]: "L", [r]: "R" } }, set: setF(),
+          note: `'${s[r]}' is already in the window — INVALID. Shrink: evict '${s[l]}' from the left, advance L. (L never moves backward — that's the O(n) guarantee.)` });
+        seen.delete(s[l]); l++;
+      }
+      seen.add(s[r]);
+      const nb = r - l + 1 > best; best = Math.max(best, r - l + 1);
+      fr.push({ arr: { cells: cellsF(r, null, r), win: [l, r], ptrs: { [l]: "L", [r]: "R" } }, set: setF(),
+        note: `Admit '${s[r]}'. Window [${l}..${r}] is valid, length ${r - l + 1}. best = ${best}${nb ? " &#10003;" : ""}.` });
+    }
+    fr.push({ arr: { cells: s.split("").map((ch, j) => (j <= 2) ? { v: ch, cls: "good" } : { v: ch, cls: "dim" }) },
+      set: { label: "seen", pairs: [] },
+      note: 'Answer: 3 ("abc"). Despite the nested while, every character entered the window once and left at most once — total work O(n).' });
+    Viz.player("viz-vwin", { caption: 'longest unique substring of "abcabcbb" — grow right, evict left', view: view, frames: fr });
+  })();
+  </script>
+
+  <h2>Choosing your variant</h2>
+  <table>
+    <tr><th>Question shape</th><th>Strategy</th></tr>
+    <tr><td>Longest window satisfying a condition</td><td>Grow always; shrink only while invalid (code above)</td></tr>
+    <tr><td>Shortest window satisfying a condition</td><td>Grow until valid; then shrink while still valid, recording sizes</td></tr>
+    <tr><td>Count of valid windows</td><td>Same skeleton; add <code>right − left + 1</code> per step</td></tr>
+  </table>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>"The longest recent stretch that fits a constraint" is exactly what a bounded <strong>context window</strong> with eviction does: new tokens enter on the right, old ones fall off the left when the budget is exceeded. Streaming-LLM/attention-sink papers are variable sliding windows with a twist about <em>which</em> tokens to evict.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode's <a href="https://neetcode.io/roadmap">"Longest Substring Without Repeating Characters" video</a> — watch after attempting it yourself.</li>
+    <li>Problems: "Longest Substring Without Repeating Characters", "Longest Repeating Character Replacement" (harder — the invariant is subtler; wrestle before peeking).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>The amortized "left only moves forward" argument is worth being able to reproduce. Ask Claude Code to quiz you on it cold, tomorrow — spaced retrieval on the proof, not just the code.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="07-sliding-window-fixed.html">← 07 Sliding window, fixed size</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="09-prefix-sums.html">09 Prefix sums →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "A while-loop nested in a for-loop, yet O(n) total. Why?",
+    options: [
+      "left never resets — its total movement across the entire run is at most n",
+      "the while condition is O(1), which cancels the nesting",
+      "Python optimizes nested loops over the same variable",
+      "the window size is bounded by a constant"
+    ],
+    answer: 0,
+    explain: "Charge each inner-loop iteration to the element being evicted; each element is evicted at most once. Total inner work ≤ n. This is amortized analysis again (Lesson 03's append!)."
+  },
+  {
+    code: "while s[right] in seen:\n    seen.remove(s[left])\n    left += 1\nseen.add(s[right])",
+    prompt: "What is the invariant immediately after this block runs?",
+    options: [
+      "the window [left..right] contains no repeated characters",
+      "the window contains exactly one repeated character",
+      "left and right point at the same character",
+      "seen contains every character of s so far"
+    ],
+    answer: 0,
+    explain: "The while evicts until the incoming char is no longer a duplicate, then admits it. Valid-after-every-step is what makes 'best' safe to record."
+  },
+  {
+    code: "\"Find the SHORTEST subarray with sum >= target\n(all elements positive).\"",
+    prompt: "Correct window strategy?",
+    options: [
+      "grow until sum ≥ target, then shrink while it still holds, recording sizes",
+      "grow always, shrink only when sum exceeds 2 × target",
+      "fixed window of size target // max(arr)",
+      "two converging pointers from the ends"
+    ],
+    answer: 0,
+    explain: "For 'shortest valid', overshoot then tighten. Positivity guarantees shrinking only decreases the sum — that monotonicity is what licenses the window at all."
+  },
+  {
+    prompt: "Review from 07: which window summary supports O(1) enter AND leave updates?",
+    options: [
+      "a dict of character counts",
+      "the median of the window",
+      "the sorted order of the window",
+      "the mode requiring a full recount"
+    ],
+    answer: 0,
+    explain: "Counts increment and decrement in O(1). Median and sortedness can't absorb departures cheaply — they need heaps or trees."
+  },
+  {
+    code: "seen = set()\nleft = 0\nfor right in range(len(s)):\n    while s[right] in seen:\n        seen.remove(s[left]); left += 1\n    seen.add(s[right])",
+    prompt: "Worst-case auxiliary space, for a string of n distinct characters?",
+    options: ["O(n)", "O(1)", "O(log n)", "O(n²)"],
+    answer: 0,
+    explain: "All n distinct chars can be in the window at once. With a bounded alphabet (26 lowercase letters) you may argue O(1) — say which assumption you're making."
+  }
+]);
+</script>
+</body>
+</html>

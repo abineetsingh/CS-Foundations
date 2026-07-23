@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 36 — DP III: Two-Dimensional DP</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 36 · Phase 4 · ~30 minutes</span>
+  <h1>Dynamic Programming III: Two Dimensions</h1>
+  <p class="lede">Today's skill: design states with two coordinates — grid paths and the great sequence-comparison DPs.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>When one number can't describe "where you are" in a problem, two can: a grid position, or positions in two different strings. The second family — edit distance, longest common subsequence — is textbook interview material AND the algorithmic core of diff tools, spellcheckers, and DNA alignment. This is DP's power unlocked.</p>
+  </div>
+
+  <h2>Family 1: grid paths</h2>
+  <p><em>Unique Paths: from the top-left of an m×n grid, moving only right or down, how many routes to the bottom-right?</em> Four questions: state = cell (r, c); transition = you arrived from above or from the left; bases = the top row and left column (one route each):</p>
+  <pre><code>def unique_paths(m, n):
+    dp = [[1] * n for _ in range(m)]         # first row & column: 1 way
+    for r in range(1, m):
+        for c in range(1, n):
+            dp[r][c] = dp[r-1][c] + dp[r][c-1]   # from above + from the left
+    return dp[m-1][n-1]</code></pre>
+  <p><strong>O(m·n)</strong> time — states × O(1) transition, the pricing formula from Lesson 34. Since each row reads only the previous row, the rolling squeeze (Lesson 35) drops space to O(n): keep one row. Variants swap the transition: obstacles zero a cell out; "Minimum Path Sum" turns <code>+</code> into <code>min(...) + grid[r][c]</code>. Same skeleton, dozen problems.</p>
+
+  <h2>Family 2: two sequences — the crown jewels</h2>
+  <p><em>Longest Common Subsequence: longest sequence appearing (not necessarily contiguously) inside both strings.</em> The state insight that unlocks every string-pair problem: <strong>dp[i][j] = the answer for the first i chars of s and first j chars of t</strong>. The transition asks about the last characters:</p>
+  <pre><code>def lcs(s, t):
+    m, n = len(s), len(t)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]    # +1: empty-prefix armor (09!)
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if s[i-1] == t[j-1]:                  # last chars match:
+                dp[i][j] = dp[i-1][j-1] + 1       #   both consumed, +1
+            else:                                 # they can't both be in the LCS:
+                dp[i][j] = max(dp[i-1][j],        #   drop s's last char
+                               dp[i][j-1])        #   or drop t's
+    return dp[m][n]</code></pre>
+  <pre><code>      ""  a  c  e            s = "abcde", t = "ace"
+  ""   0  0  0  0
+  a    0  1  1  1            each cell: a subproblem "LCS of prefixes"
+  b    0  1  1  1            answer accumulates toward the corner ↘
+  c    0  1  2  2
+  d    0  1  2  2
+  e    0  1  2  3   → LCS = 3 ("ace")</code></pre>
+  <p>O(m·n) time and space (squeezable to two rows). <strong>Edit distance</strong> (Levenshtein) is the same table with a different menu: match is free; otherwise 1 + min(insert, delete, replace) = <code>1 + min(dp[i][j-1], dp[i-1][j], dp[i-1][j-1])</code>. Derive it from LCS rather than memorizing — the interviewer's follow-up is usually exactly that derivation.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-lcs"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    function make(vals) {
+      const s = String(vals.s).slice(0, 6), t = String(vals.t).slice(0, 6);
+      const m = s.length, n = t.length;
+      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(null));
+      for (let j = 0; j <= n; j++) dp[0][j] = 0;
+      for (let i = 0; i <= m; i++) dp[i][0] = 0;
+      const fr = [];
+      const rowL = ['&#8220;&#8221;'].concat(s.split(""));
+      const colL = ['&#8220;&#8221;'].concat(t.split(""));
+      function snap(hi, hj, srcs, note) {
+        fr.push({ cells: dp.map((row, i) => row.map((v, j) => {
+          if (v === null) return { v: "", cls: "ghost" };
+          if (hi === i && hj === j) return { v: v, cls: "hl" };
+          if (srcs && srcs.indexOf(i + "," + j) !== -1) return { v: v, cls: "good" };
+          return v;
+        })), rowLabels: rowL, colLabels: colL, note: note });
+      }
+      snap(null, null, null, 'Row 0 and column 0 are 0 — the LCS with an empty prefix is empty. (The +1 sizing is Lesson 09\'s off-by-one armor.) Each cell = "LCS of these two PREFIXES."');
+      for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+        if (s[i - 1] === t[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1] + 1;
+          snap(i, j, [(i - 1) + "," + (j - 1)],
+            `'${s[i - 1]}' == '${t[j - 1]}' — MATCH: take the diagonal (both consumed) + 1 = ${dp[i][j]}.`);
+        } else {
+          dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+          snap(i, j, [(i - 1) + "," + j, i + "," + (j - 1)],
+            `'${s[i - 1]}' &#8800; '${t[j - 1]}' — they can't both end the LCS: max(above = ${dp[i - 1][j]}, left = ${dp[i][j - 1]}) = ${dp[i][j]}.`);
+        }
+      }
+      const path = [];
+      let i = m, j = n;
+      while (i > 0 && j > 0) {
+        if (s[i - 1] === t[j - 1]) { path.push(i + "," + j); i--; j--; }
+        else if (dp[i - 1][j] >= dp[i][j - 1]) i--; else j--;
+      }
+      fr.push({ cells: dp.map((row, i2) => row.map((v, j2) =>
+          path.indexOf(i2 + "," + j2) !== -1 ? { v: v, cls: "good" } : v)),
+        rowLabels: rowL, colLabels: colL,
+        note: `LCS length = <strong>${dp[m][n]}</strong>. The green cells are the traceback's diagonal (match) steps — read them off to recover the subsequence itself. ${m}&#215;${n} = ${m * n} O(1) cells: exponential subsequence space, collapsed.` });
+      return fr;
+    }
+    Viz.runnable("viz-lcs", { caption: "fill the LCS table on your own strings (up to 6 chars each)",
+      controls: [{ key: "s", label: "s", type: "text", value: "abcde", size: 8 },
+                 { key: "t", label: "t", type: "text", value: "ace", size: 8 }],
+      make: make, view: Viz.grid });
+  })();
+  </script>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>This table is everywhere in ML history: sequence alignment in bioinformatics (Needleman-Wunsch IS this algorithm), dynamic time warping for audio, the Viterbi algorithm decoding HMMs — the pre-transformer speech stack was 2-D DP. Modern echo: WER (word error rate) for ASR is edit distance; and CTC loss for speech models is computed with exactly this style of prefix-alignment DP. When attention papers say they replaced "alignment," this table is what they replaced.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">2-D DP, "Longest Common Subsequence" video</a>.</li>
+    <li>Problems: "Unique Paths", "Longest Common Subsequence", then "Edit Distance" (derive the transition yourself first — it's the lesson's real test).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>Fill the LCS table for s="abc", t="bca" by hand — every cell, no skipping. The moment dp[i][j-1] vs dp[i-1][j] stops feeling arbitrary, 2-D DP is yours. Bring the filled table to Claude Code if any cell surprised you.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="35-dp-tabulation.html">← 35 DP II: tabulation</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="37-knapsack.html">37 DP IV: knapsack patterns →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "The state for two-sequence problems is (chars of s used, chars of t used) because…",
+    options: [
+      "progress through each string is independent — one index can't capture both positions",
+      "strings must be compared character by character",
+      "two dimensions always beat one for accuracy",
+      "the alphabet needs two indices to address"
+    ],
+    answer: 0,
+    explain: "State design = 'what's the minimum info that determines the remaining subproblem?' Here: where you are in s AND in t. If one number sufficed, it'd be 1-D. That question IS DP skill."
+  },
+  {
+    code: "if s[i-1] == t[j-1]:\n    dp[i][j] = dp[i-1][j-1] + 1",
+    prompt: "Why is consuming BOTH matched characters (diagonal move) safe — could saving one for later beat it?",
+    options: [
+      "no — matching them now never blocks a longer LCS; a solution saving either char can be rearranged to match here first",
+      "yes, but the case is rare enough to ignore",
+      "the max over the other two cells covers that case",
+      "duplicates in the strings make it unsafe in general"
+    ],
+    answer: 0,
+    explain: "The classic exchange argument: any LCS not using this match can be modified to use it without getting shorter. Transitions need such justifications — 'it felt right' fails follow-ups."
+  },
+  {
+    prompt: "LCS on strings of length 1,000 each: time and (squeezed) space are…",
+    options: [
+      "O(m·n) = 10⁶ time; O(n) space with two rows",
+      "O(m+n) time; O(1) space",
+      "O(m·n) time; O(1) space",
+      "O(2ⁿ) time — subsequences are exponential"
+    ],
+    answer: 0,
+    explain: "A million cells × O(1) each — instant. The exponential subsequence space collapses because only prefix-pair OPTIMA matter, not the subsequences themselves. That collapse is DP's entire magic."
+  },
+  {
+    code: "\"Edit distance: transform 'horse' → 'ros'.\ndp[i][j] when s[i-1] != t[j-1]:\"",
+    prompt: "The three options in 1 + min(…) correspond to…",
+    options: [
+      "insert into s (dp[i][j-1]), delete from s (dp[i-1][j]), replace (dp[i-1][j-1])",
+      "swap adjacent chars, reverse a prefix, delete a suffix",
+      "match, mismatch, skip",
+      "three ways of writing the same operation"
+    ],
+    answer: 0,
+    explain: "Each op consumes one char from s, t, or both — mapping exactly to the three neighboring cells. Deriving this mapping live (from 'what does each op consume?') is the interview moment this lesson rehearses."
+  },
+  {
+    prompt: "Review from 35: House Robber's table squeezed to two variables because…",
+    options: [
+      "its transition read only dp[i-1] and dp[i-2] — a bounded look-back",
+      "the values were all non-negative",
+      "n was guaranteed to be small",
+      "max() ignores older values automatically"
+    ],
+    answer: 0,
+    explain: "Bounded reach → bounded storage. Today's 2-D version: rows read only the previous row → keep two rows, O(n). The squeeze rule generalizes across dimensions."
+  }
+]);
+</script>
+</body>
+</html>

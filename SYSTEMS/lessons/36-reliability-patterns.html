@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 36 — Reliability Patterns</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 36 · ~25 minutes · Systems Design · Phase 4</span>
+  <h1>Reliability Patterns</h1>
+  <p class="lede">One skill, learned today: read the anatomy of a cascading failure — and place the three defenses that stop it: circuit breakers, bulkheads, graceful degradation.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>Big outages are rarely one thing breaking — they're one small thing breaking and the failure <em>propagating</em>. "How does your design fail?" is the deepest interview question there is, and these three patterns are its expected vocabulary. They're also the SRE-book material (35's SLOs told you <em>when</em> to care; today is <em>how</em> to survive).</p>
+  </div>
+
+  <h2>Anatomy of a cascade</h2>
+  <p>You've met the ingredients separately; now watch them conspire. A minor dependency slows down → callers' threads pile up waiting (no timeout, or too-generous ones — 22) → the callers exhaust their pools and slow down too → <em>their</em> callers pile up → retries multiply the load (28's storm) → healthy services drown in traffic meant for the sick one. One slow non-critical feature takes down the whole product <a href="https://sre.google/sre-book/addressing-cascading-failures/">[Google SRE: cascading failures]</a>:</p>
+  <div id="flow"></div>
+
+  <h2>The three defenses</h2>
+  <table>
+    <tr><th>Pattern</th><th>Mechanism</th><th>Protects against</th></tr>
+    <tr><td><strong><a href="../reference/glossary.html#circuit-breaker">Circuit breaker</a></strong></td><td>wrap calls to a dependency; count failures. Too many → the breaker <em>opens</em>: calls fail instantly for a cooldown, no network attempt. After the cooldown, <em>half-open</em>: let a few probes through; success closes it, failure re-opens</td><td>wasting threads on a dead dependency; hammering it while it recovers (the recovery-prevention loop)</td></tr>
+    <tr><td><strong>Bulkhead</strong></td><td>partition resources per dependency: separate connection pools / thread pools / pod fleets (ship-compartment metaphor)</td><td>one dependency's stall consuming ALL your threads — recommendation-service slowness can only sink the recommendation compartment</td></tr>
+    <tr><td><strong>Graceful degradation</strong></td><td>a designed fallback per feature: cached/stale data (09), a default, or hiding the feature — decided <em>at design time</em>, not improvised at 3am</td><td>binary all-or-nothing failure; converts "site down" into "recommendations missing"</td></tr>
+  </table>
+  <p>They compose into one sentence you should be able to say fluently: <em>"Calls to each dependency get timeouts and a circuit breaker, run from a bulkheaded pool, and every non-critical dependency has a designed fallback — so a failing dependency costs us its feature, never the product."</em> The mindset shift interviewers listen for: stop asking <em>if</em> dependencies fail; budget for <em>when</em>.</p>
+  <p>One more habit worth naming: <strong>test the armor</strong>. Chaos engineering — deliberately killing pods and injecting latency in production-like conditions (Netflix's Chaos Monkey made it famous) — exists because untested fallbacks rot: the cache path nobody exercised for a year is itself broken when the 3am cascade finally calls on it <a href="https://principlesofchaos.org/">[Principles of Chaos]</a>.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>LLM products degrade gracefully along a quality axis most software lacks: primary model overloaded → fall back to a smaller/faster model, shrink context, or queue the request — worse answers beating no answers. Provider APIs are bulkheaded per-tenant (one customer's burst can't starve others' capacity), and every serious agent framework wraps tool calls in circuit breakers — a flaky tool must not wedge the whole agent loop.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://sre.google/sre-book/addressing-cascading-failures/">Google SRE book — Addressing Cascading Failures</a> (25 min, free): the definitive dissection, including the counterintuitive parts (sometimes the fix is <em>refusing</em> to auto-scale).</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="35-observability.html">← 35 Observability</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="37-security-fundamentals.html">37 Security fundamentals →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "user", label: "Users" },
+    { id: "web", label: "Product API", sub: "thread pool: 200" },
+    { id: "rec", label: "Recommendations", sub: "sick: 30s responses", row: 1 },
+    { id: "checkout", label: "Checkout", sub: "healthy", row: 1 },
+  ],
+  links: [["user","web"], ["web","rec"], ["web","checkout"]],
+  steps: [
+    { at: "rec",
+      caption: "14:00 — the recommendations service develops a slow database query (13's missing index, say). Not down. Just slow: 30-second responses. A minor, non-critical feature. Watch it kill everything." },
+    { from: "web", to: "rec", packet: "calls pile up…",
+      caption: "Every product page calls recommendations. Each call now parks a thread for 30s. At 100 pages/sec, the API's 200-thread pool is fully parked within seconds." },
+    { at: "web",
+      caption: "Pool exhausted → the API can't serve ANYTHING — including checkout, which is perfectly healthy. Users retry (22), multiplying load. 14:03: the entire product is down because a nice-to-have got slow." },
+    { at: ["web", "rec"],
+      caption: "Rewind to 14:00 with armor on. Defense 1 — CIRCUIT BREAKER: after N slow/failed calls, it opens. Calls to recommendations now fail in 0 ms — no thread parked, and the sick service gets air to recover instead of a beating." },
+    { from: "web", to: "checkout", packet: "checkout: unaffected",
+      caption: "Defense 2 — BULKHEAD: recommendations calls run from their own 20-thread pool. Even before the breaker opened, the worst case was 20 threads parked — the other 180 kept serving checkout. The compartment flooded; the ship sailed on." },
+    { from: "web", to: "user", packet: "page, sans recs",
+      caption: "Defense 3 — GRACEFUL DEGRADATION: the breaker's fallback serves yesterday's cached recommendations (or none). Users see product pages a touch less clever. Revenue: unharmed. Pager: silent. Breaker half-opens later, probes, closes. 14:31: nobody knows it happened." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "The killer detail in most cascades is that the failing dependency is…",
+    options: [
+      "slow rather than cleanly down",
+      "the most critical service present",
+      "unmonitored by any dashboards",
+      "outside the company's own network",
+    ],
+    answer: 0,
+    explain: "Clean deaths fail fast and free their callers. SLOW failures park threads for the full timeout — resource exhaustion does the killing. 'Slow is worse than down' is operator folklore for a reason." },
+  { prompt: "An OPEN circuit breaker…",
+    options: [
+      "fails calls instantly without attempting",
+      "retries the dependency with backoff",
+      "routes calls to a replica",
+      "queues calls until recovery",
+    ],
+    answer: 0,
+    explain: "Open = stop trying: immediate failure, zero threads risked, zero load on the sick service. The half-open state later probes for recovery. (Retries/queues elsewhere; the breaker's job is NOT calling.)" },
+  { prompt: "Bulkheads protect you by…",
+    options: [
+      "capping each dependency's resource consumption",
+      "duplicating requests across two pools",
+      "isolating tenants onto separate databases",
+      "restarting exhausted thread pools automatically",
+    ],
+    answer: 0,
+    explain: "Separate pools per dependency = a stalled dependency can only drown ITS compartment. The blast radius is set by pool size, chosen at design time." },
+  { prompt: "Why do chaos-engineering advocates break production-like systems on purpose?",
+    options: [
+      "unexercised fallback paths rot silently",
+      "outage practice trains new operators",
+      "it proves the SLO targets wrong",
+      "breakers require weekly manual resets",
+    ],
+    answer: 0,
+    explain: "The degraded path is code too — and code that never runs, breaks. Regular deliberate failure keeps fallbacks honest before a real 3am does the testing for you." },
+  { prompt: "Spaced review — Lesson 35: the breaker 'counts failures' to decide opening. That counter is which pillar, and the open/close events belong in which?",
+    options: [
+      "metrics for both, plus event logs",
+      "traces for both, sampled at one percent",
+      "logs for counts, traces for events",
+      "SLOs for counts, budgets for events",
+    ],
+    answer: 0,
+    explain: "Failure rates are classic metrics (cheap, continuous, alertable); breaker state-changes are discrete events worth logging AND charting. A breaker flapping open/closed is a dashboard's loudest story." },
+]);
+</script>
+</body>
+</html>

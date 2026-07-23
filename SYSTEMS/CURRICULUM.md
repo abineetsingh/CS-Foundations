@@ -3,18 +3,20 @@
 Full lesson sequence from true beginner to interview-ready *and* able to build production-shaped backends.
 Ordering builds one mental model outward: one request → one server under load → the data layer → many machines → production operations → interview synthesis and AI systems. Grounded in the sources in [RESOURCES.md](./RESOURCES.md) — chiefly MDN (phase 1), [DDIA 2nd ed.](https://dataintensive.net/) (phases 2–3), the [Google SRE book](https://sre.google/sre-book/table-of-contents/) (phase 4), and [Hello Interview](https://www.hellointerview.com/learn/system-design/in-a-hurry/introduction) (phase 5).
 
-**Status (2026-07-19): all 46 lessons are authored** (`0001`–`0046` in `./lessons/`,
+**Status (2026-07-19): all 46 lessons are authored** (`01`–`46` in `./lessons/`,
 numbering matches this list exactly), plus four reference docs. Every lesson was
 verified by a stub-DOM harness rendering all 85 interactive widgets with no JS
 errors, and glossary/cross-links were checked to resolve. Revise individual lessons
 as quiz results arrive. Each lesson is ~20–30 min with an interactive flow animation
 (`sysviz.js`), an inline quiz (spaced-review questions from 1–2 lessons back start at
-`0003`), and — where marked *(hands-on)* — a short local exercise in Python. Cadence:
+`03`), and — where marked *(hands-on)* — a short local exercise in Python. Cadence:
 2–3 lessons/week in parallel with DSA → roughly 18 weeks.
+
+Open [`00-table_of_contents.html`](./00-table_of_contents.html) to browse and launch every lesson as a book.
 
 ## Phase 1 — Foundations: how one backend works (weeks 1–4)
 
-1. The life of a request — client/server, DNS, IP:port, HTTP anatomy — `0001` ✅ *(hands-on: http.server + curl)*
+1. The life of a request — client/server, DNS, IP:port, HTTP anatomy — `01` ✅ *(hands-on: http.server + curl)*
 2. HTTP & API design — methods, headers, status codes, REST conventions, JSON, pagination; designing endpoints people can guess
 3. Build a real API *(hands-on)* — FastAPI service with CRUD endpoints, in-memory store; test it with curl
 4. State & the database — why in-memory state dies with the process; SQLite from Python; first schema *(hands-on)*
@@ -23,15 +25,15 @@ as quiz results arrive. Each lesson is ~20–30 min with an interactive flow ani
 7. Scaling & statelessness — vertical vs horizontal; why servers must forget so they can multiply; sessions and sticky-state pitfalls
 8. Load balancing — L4 vs L7, round-robin vs least-connections, health checks, what happens when a server dies mid-request
 9. Caching I — the cache hierarchy (browser → CDN → app → database); cache-aside pattern; TTLs; hit-rate arithmetic *(ML link: KV-cache as exactly this idea)*
-10. Caching II & CDNs — invalidation (the hard problem), eviction policies (LRU ties to DSA `0011`), thundering herds; CDNs as geography-aware caches
+10. Caching II & CDNs — invalidation (the hard problem), eviction policies (LRU ties to DSA `11`), thundering herds; CDNs as geography-aware caches
 11. The v1 architecture diagram — assemble lessons 1–10 into the standard "web app at scale" picture; first mini design drill: Twitter-lite, requirements to diagram
 
-**Milestone:** draw and narrate the standard scalable web architecture from memory; estimate capacity for a stated load; the FastAPI service from `0003`–`0004` runs with a real database file behind it.
+**Milestone:** draw and narrate the standard scalable web architecture from memory; estimate capacity for a stated load; the FastAPI service from `03`–`04` runs with a real database file behind it.
 
 ## Phase 2 — The data layer (weeks 4–8)
 
 12. Relational modeling & SQL — tables, keys, joins; normalize vs denormalize *(hands-on: SQLite queries against your API's data)*
-13. Indexes — B-trees (ties to DSA `0021`), what an index costs, reading a query plan, composite indexes
+13. Indexes — B-trees (ties to DSA `21`), what an index costs, reading a query plan, composite indexes
 14. Transactions & ACID — what atomicity actually buys you; isolation levels at concept depth
 15. Replication — leader/follower, read replicas, replication lag and the stale-read bug class
 16. Partitioning & sharding — range vs hash, hot keys, resharding pain, consistent hashing (the interview classic)
@@ -77,7 +79,7 @@ as quiz results arrive. Each lesson is ~20–30 min with an interactive flow ani
 41. Drill: URL shortener — the canonical opener, executed full-length against the rubric
 42. Drill: chat system — WebSockets, fanout, presence, message ordering, offline delivery
 43. Drill: news feed — fanout-on-write vs fanout-on-read, celebrity problem, ranking pipeline
-44. AI systems I: LLM serving — GPU pools, continuous batching, KV-cache management (DSA `0005` comes home), token streaming, model routing
+44. AI systems I: LLM serving — GPU pools, continuous batching, KV-cache management (DSA `05` comes home), token streaming, model routing
 45. AI systems II: agent & RAG infrastructure — tool-call loops, sandboxing, embeddings + vector search (ANN indexes), context pipelines
 46. Capstone — build: production-shaped mini service (API + DB + cache + queue, containerized, observed) per the mission's success criteria; then a full mock-interview marathon and gap review
 

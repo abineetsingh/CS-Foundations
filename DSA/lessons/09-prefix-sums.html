@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 09 — Prefix Sums</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 09 · Phase 1 · ~20 minutes</span>
+  <h1>Prefix Sums: Precompute, Then Answer Instantly</h1>
+  <p class="lede">Today's skill: answer "sum of any range" queries in O(1) by paying O(n) once, up front.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Prefix sums introduce the third great cost-shifting move (after Lesson 02's space-for-time and Lesson 07's update-don't-recompute): <strong>preprocessing</strong>. Spend once, answer many times cheaply — the shape of every index, cache, and database in existence.</p>
+  </div>
+
+  <h2>The construction</h2>
+  <p>Define <code>prefix[i]</code> = sum of the first i elements (with <code>prefix[0] = 0</code>):</p>
+  <pre><code>arr    =      [3,  1,  4,  1,  5,  9]
+prefix = [0,   3,  4,  8,  9, 14, 23]
+
+def build_prefix(arr):
+    prefix = [0]
+    for x in arr:
+        prefix.append(prefix[-1] + x)   # each entry: previous + one element
+    return prefix</code></pre>
+  <p>Then any range sum falls out by subtraction — everything before <code>j</code>, minus everything before <code>i</code>:</p>
+  <pre><code>def range_sum(prefix, i, j):        # sum of arr[i..j] inclusive
+    return prefix[j + 1] - prefix[i]   # O(1)</code></pre>
+  <p><code>sum(arr[2..4])</code> = <code>prefix[5] − prefix[2]</code> = 14 − 4 = 10 = 4+1+5. ✓</p>
+  <p><strong>Costs</strong>: build O(n) time and O(n) space, then every query O(1). One build amortizes over any number of queries. Contrast: answering q queries by slicing costs O(q·n).</p>
+
+  <h2>The off-by-one armor</h2>
+  <p>The leading 0 and length n+1 are not style — they eliminate special-casing ranges that start at index 0. Adopt this convention permanently: <code>prefix</code> has n+1 entries, <code>prefix[0] = 0</code>, range [i..j] = <code>prefix[j+1] − prefix[i]</code>. Interviewers watch for off-by-ones here more than anywhere else.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-prefix"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const a = [3, 1, 4, 1, 5, 9], fr = [];
+    const pre = [0];
+    function mk(hlA, hlP, winA) {
+      return { rows: [
+        { label: "arr", cells: a.map((v, i) => (hlA && hlA.indexOf(i) !== -1) ? { v: v, cls: "hl" } : v), win: winA },
+        { label: "prefix", cells: pre.map((v, i) => (hlP && hlP.indexOf(i) !== -1) ? { v: v, cls: "good" } : v) }
+      ] };
+    }
+    fr.push(Object.assign(mk(null, [0]), { note: "prefix[0] = 0 — the empty prefix. This zero is the off-by-one armor." }));
+    for (let i = 0; i < a.length; i++) {
+      pre.push(pre[pre.length - 1] + a[i]);
+      fr.push(Object.assign(mk([i], [pre.length - 1]),
+        { note: `prefix[${i + 1}] = prefix[${i}] + arr[${i}] = ${pre[i]} + ${a[i]} = ${pre[i + 1]}. One O(1) step per entry — an O(n) build, paid once.` }));
+    }
+    fr.push(Object.assign(mk(null, [2, 5], [2, 4]),
+      { note: "Query sum(arr[2..4]) (shaded): prefix[5] &#8722; prefix[2] = 14 &#8722; 4 = <strong>10</strong> = 4+1+5 &#10003;. O(1) — the array itself was never touched." }));
+    fr.push(Object.assign(mk(null, [1, 4], [1, 3]),
+      { note: "Another: sum(arr[1..3]) = prefix[4] &#8722; prefix[1] = 9 &#8722; 3 = 6. Any range, any number of times, O(1) each. Preprocess once, answer instantly." }));
+    Viz.player("viz-prefix", { caption: "building prefix sums, then answering range queries in O(1)", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>Level 2: prefix sums meet the hash map</h2>
+  <p><em>Count subarrays summing exactly to k</em> (a famous medium). Insight: a subarray [i..j] sums to k exactly when <code>prefix[j+1] − prefix[i] = k</code> — i.e., while scanning, we want to know: <em>how many earlier prefixes equal current − k?</em> That's a "remember the past in a dict" question (Lesson 05):</p>
+  <pre><code>from collections import defaultdict
+
+def count_subarrays_sum_k(arr, k):
+    counts = defaultdict(int)
+    counts[0] = 1                     # empty prefix
+    running, result = 0, 0
+    for x in arr:
+        running += x
+        result += counts[running - k]   # earlier prefixes that complete a k-sum
+        counts[running] += 1
+    return result</code></pre>
+  <p>O(n) time for a problem that looks like it needs all O(n²) subarrays. Patterns compose — this is prefix sums × hash map, and it's the level the NeetCode 150 expects.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>To sample a token from a probability distribution, frameworks build the <strong>cumulative distribution</strong> — a prefix sum of probabilities — then find where a random number lands (with binary search, Lesson 14: another composition). Cumulative ops are so central that GPUs have a parallel primitive for them (<code>cumsum</code>/scan).</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode DSA for Beginners → <a href="https://neetcode.io/courses/dsa-for-beginners/0">Prefix Sums chapter</a>.</li>
+    <li>Problems: "Range Sum Query — Immutable", "Product of Array Except Self" (prefix idea with products, from both directions — a genuine aha).</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>If the counts[0] = 1 line in the level-2 example seems arbitrary, ask Claude Code why the empty prefix must be counted — it's the same off-by-one armor in disguise.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="08-sliding-window-variable.html">← 08 Sliding window, variable size</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="10-stacks.html">10 Stacks →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    code: "prefix = [0, 3, 4, 8, 9, 14, 23]   # for arr = [3,1,4,1,5,9]",
+    prompt: "sum(arr[1..3]) — that is, 1 + 4 + 1 — equals which expression?",
+    options: ["prefix[4] - prefix[1]", "prefix[3] - prefix[1]", "prefix[4] - prefix[0]", "prefix[3] - prefix[0]"],
+    answer: 0,
+    explain: "Range [i..j] = prefix[j+1] − prefix[i] → prefix[4] − prefix[1] = 9 − 3 = 6. ✓ The +1 is the convention doing its job."
+  },
+  {
+    prompt: "You'll answer 10,000 range-sum queries on a fixed array of size n. Best plan?",
+    options: [
+      "build a prefix array once (O(n)), then O(1) per query",
+      "sum each queried slice directly — O(n) per query",
+      "sort the array once, then O(log n) per query",
+      "cache each queried range in a dict as it's asked"
+    ],
+    answer: 0,
+    explain: "Preprocessing wins when queries are many: O(n + q) total vs O(q·n). Sorting destroys the ranges; caching still pays O(n) per new range."
+  },
+  {
+    prompt: "Prefix sums require the array not to change. Why?",
+    options: [
+      "one element update invalidates every later prefix entry",
+      "the prefix array cannot store updated values",
+      "updates make the subtraction formula overflow",
+      "they don't — updates are O(1) to apply"
+    ],
+    answer: 0,
+    explain: "prefix[i] bakes in everything before i, so arr[3] += 5 stales all entries from prefix[4] on — O(n) to repair. (Fenwick/segment trees fix this; beyond interview scope for now.)"
+  },
+  {
+    code: "counts = {0: 1}\nrunning = result = 0\nfor x in arr:\n    running += x\n    result += counts.get(running - k, 0)\n    counts[running] = counts.get(running, 0) + 1",
+    prompt: "Why does counts start with {0: 1}?",
+    options: [
+      "a subarray starting at index 0 needs the empty prefix to subtract",
+      "dicts in Python must be initialized non-empty",
+      "it guards against division by zero",
+      "k could be zero, which needs a sentinel"
+    ],
+    answer: 0,
+    explain: "If arr[0..j] itself sums to k, then running − k = 0 — we need one 'earlier prefix' of value 0 to exist. Same reason prefix[0] = 0."
+  },
+  {
+    prompt: "Review from 08: in the variable window, the inner while-loop's TOTAL cost across the whole run is O(n) because…",
+    options: [
+      "each element is evicted from the window at most once",
+      "the while body is O(1) and runs once per for-iteration",
+      "the window never exceeds a constant size",
+      "eviction uses a set, which is O(1) amortized"
+    ],
+    answer: 0,
+    explain: "Charge evictions to elements, not iterations: n elements, ≤1 eviction each. The per-iteration count varies wildly; the total is what's bounded."
+  }
+]);
+</script>
+</body>
+</html>

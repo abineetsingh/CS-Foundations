@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 45 — Capstone: DSA in ML Systems</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 45 · Phase 5 · Capstone · ~30 minutes</span>
+  <h1>Capstone: The Data Structures Inside ML Systems</h1>
+  <p class="lede">The finale: every "mission link" box from 44 lessons, assembled into one picture — an LLM serving stack, read through the lens you've built.</p>
+
+  <div class="mission">
+    <span class="callout-label">The mission, closed</span>
+    <p>You started this course to pass AI-lab interviews AND to build the foundation for architecture and agentic research. This lesson is the bridge test: can you read a modern ML system as a composition of the structures you now own? Spoiler — you can. That was the point all along.</p>
+  </div>
+
+  <h2>One request through the stack, in your vocabulary</h2>
+  <p>A prompt arrives at an inference service. Trace it:</p>
+  <table>
+    <tr><th>Stage</th><th>What runs</th><th>Your lesson</th></tr>
+    <tr><td>1. Request queued</td><td>FIFO scheduling, continuous batching</td><td>queues <a href="./11-queues-and-deques.html">11</a></td></tr>
+    <tr><td>2. Rate limit checked</td><td>sliding-window log per client</td><td>window <a href="./08-sliding-window-variable.html">08</a>, practical <a href="./44-ai-lab-practical.html">44</a></td></tr>
+    <tr><td>3. Text → tokens</td><td>longest-match walks over a vocab trie; BPE merges (greedy, carefully ordered)</td><td>strings <a href="./04-strings-and-immutability.html">04</a>, tries <a href="./25-tries.html">25</a>, greedy <a href="./38-greedy.html">38</a></td></tr>
+    <tr><td>4. Prefix cache probed</td><td>hash of the prompt prefix → cached KV state; LRU eviction</td><td>hashing <a href="./05-hash-maps-and-sets.html">05</a>, memoization <a href="./34-dp-memoization.html">34</a>, LRU <a href="./43-design-problems.html">43</a></td></tr>
+    <tr><td>5. Forward pass scheduled</td><td>computation DAG executed in topological order; tensors = contiguous arrays</td><td>arrays <a href="./03-arrays-and-python-lists.html">03</a>, topo sort <a href="./30-topological-sort.html">30</a></td></tr>
+    <tr><td>6. Attention computed</td><td>the O(n²) all-pairs term — the industry's favorite enemy; sliding-window variants cut it to O(n·k)</td><td>Big-O <a href="./01-big-o-reading-the-cost-of-code.html">01</a>, window <a href="./07-sliding-window-fixed.html">07</a></td></tr>
+    <tr><td>7. KV blocks managed</td><td>paged allocation — pointer-linked blocks to dodge O(n) reallocation</td><td>linked lists <a href="./12-linked-lists-i.html">12</a></td></tr>
+    <tr><td>8. Next token chosen</td><td>top-k over logits (heap); sample via CDF = prefix sums + binary search; or beam search = BFS + bounded heap</td><td>heaps <a href="./23-heaps.html">23</a>, prefix sums <a href="./09-prefix-sums.html">09</a>, binary search <a href="./14-binary-search-i.html">14</a>, BFS <a href="./20-tree-bfs.html">20</a></td></tr>
+    <tr><td>9. (Agent mode) act</td><td>tool-call search trees, pruned; cycles detected in plan graphs</td><td>backtracking <a href="./26-backtracking-i.html">26</a>/<a href="./27-backtracking-ii.html">27</a>, graphs <a href="./28-graphs-traversal.html">28</a></td></tr>
+    <tr><td>10. Eval &amp; monitoring</td><td>WER = edit distance; streaming percentiles = two heaps; dedup = union-find over MinHash buckets</td><td>2-D DP <a href="./36-dp-2d.html">36</a>, two heaps <a href="./24-two-heaps-and-k-way-merge.html">24</a>, UF <a href="./31-union-find.html">31</a></td></tr>
+  </table>
+  <p>Ten stages, zero magic. Every stage is a structure you can implement, a complexity you can state, and a trade-off you can argue. <em>This</em> is what "CS fundamentals" meant in your mission.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-pipeline"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const stages = ["queue", "ratelimit", "tokenize", "cache", "schedule", "attention", "KV blocks", "decode", "agent", "evals"];
+    const notes = [
+      "1 — The request lands in a FIFO batch queue: a deque (11). Continuous batching IS queue management under a latency budget.",
+      "2 — The sliding-window rate limiter checks the client: deque + amortized eviction (08, 44).",
+      "3 — The tokenizer walks a vocabulary trie for longest-match (25), greedily (38). Strings become ints because contiguous arrays are cheap (03, 04).",
+      "4 — The prefix cache: hash the prompt (05), reuse memoized KV states (34), evict LRU (43).",
+      "5 — The forward pass executes the computation DAG in topological order (30); every tensor is a contiguous array (03).",
+      "6 — Attention pays the O(n&#178;) all-pairs term (01); sliding-window variants cut it to O(n&#183;k) (07).",
+      "7 — KV memory lives in paged, pointer-linked blocks — linked-list trade-offs at datacenter scale (12).",
+      "8 — Next token: top-k over logits with a bounded heap (23); sampling = binary search over a prefix-sum CDF (09, 14); beam search = BFS + heap (20, 23).",
+      "9 — Agent mode: tool-call search trees, pruned (26, 27); plan graphs must stay acyclic (28, 30).",
+      "10 — Eval &amp; monitoring: WER is edit distance (36); streaming percentiles are two heaps (24); dedup is union-find (31)."
+    ];
+    const fr = [{ cells: stages.map(s => ({ v: s })), noIdx: true,
+      note: "One request, ten stages. Step through — every box is a lesson from this course, running in production right now." }];
+    stages.forEach(function (s, i) {
+      fr.push({ cells: stages.map((x, j) => j === i ? { v: x, cls: "hl" } : (j < i ? { v: x, cls: "good" } : { v: x })), noIdx: true,
+        note: notes[i] });
+    });
+    fr.push({ cells: stages.map(s => ({ v: s, cls: "good" })), noIdx: true,
+      note: "The whole course, deployed end to end. When a paper attacks any of these boxes, you now know its data structure by name — which was the mission all along." });
+    Viz.player("viz-pipeline", { caption: "an LLM inference request, stage by stage, in your vocabulary", view: Viz.array, frames: fr });
+  })();
+  </script>
+
+  <h2>The five ideas that kept recurring (the real curriculum)</h2>
+  <ol>
+    <li><strong>Cost is growth, not speed</strong> — and the recurring trades: space↔time (02), preprocess↔query (09), update↔recompute (07).</li>
+    <li><strong>Elimination needs justification</strong> — sortedness (06, 14), monotonicity (15), heap-minimality + non-negativity (32): every "discard half" carried a proof.</li>
+    <li><strong>Amortize over elements, not iterations</strong> — append (03), window (08), monotonic stack (10), rate limiter (44): the same proof, five costumes.</li>
+    <li><strong>Recursion = base + trust + combine</strong> — from fib to LCA to DP: induction, operationalized (17 → everywhere).</li>
+    <li><strong>Structures compose</strong> — map+list (43), two heaps (24), trie+DFS (25/27): requirements decompose, structures pair up.</li>
+  </ol>
+
+  <h2>Final synthesis quiz</h2>
+  <p>Cross-course questions — the interleaving finale. No lesson-peeking.</p>
+  <div id="quiz"></div>
+
+  <h2>Where you go from here</h2>
+  <ul>
+    <li><strong>Volume</strong>: keep the daily problem habit until interviews — interleaved across all phases (<a href="https://neetcode.io/practice/practice/neetcode250">NeetCode 250</a>, then 150 under time).</li>
+    <li><strong>Mocks</strong>: weekly with Claude Code; add human mocks (Pramp, or peers from the NeetCode Discord) — humans add the pressure this workspace can't.</li>
+    <li><strong>Intel</strong>: 2–3 weeks pre-application, refresh the AI-lab format research (RESOURCES.md's Gap).</li>
+    <li><strong>The long game</strong>: when interviews are behind you — Karpathy's "build GPT from scratch," where steps 3–8 above become code you write. A future workspace, and honestly, a fun one.</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher — final note</span>
+    <p>Finishing the lessons is the midpoint, not the end: storage strength comes from the retrieval schedule — quizzes retaken cold, problems interleaved, mocks under a clock. Tell Claude Code your milestone results as they land; the learning records steer everything. It has been a privilege building this course for you. Now go get the offer.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="44-ai-lab-practical.html">← 44 AI-lab practical screens</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a href="../00-table_of_contents.html">Course complete</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "A paper claims an attention variant reduces cost from O(n²) to O(n log n) in sequence length. Doubling a 100k context, the attention cost multiplies by roughly…",
+    options: ["~2.1× (vs 4× for standard attention)", "4× for both", "~1.5× (vs 2× standard)", "log 2 ≈ 0.7×"],
+    answer: 0,
+    explain: "n log n: 2n·log(2n) / (n·log n) ≈ 2·(17.6/16.6) ≈ 2.1. Quadratic: (2n)²/n² = 4. Reading papers' complexity claims quantitatively — Lesson 01, fully grown."
+  },
+  {
+    prompt: "The prefix cache (stage 4) is memoization in the precise sense that…",
+    options: [
+      "KV states are a pure function of the prefix — identical prefixes hit the cache instead of recomputing",
+      "it stores the model's weights for reuse",
+      "it uses lru_cache internally",
+      "prefixes are sorted before lookup"
+    ],
+    answer: 0,
+    explain: "Pure function + repeated inputs → cache (34's universal move). LRU eviction (43) bounds it; hashing (05) indexes it. Three lessons, one production system."
+  },
+  {
+    prompt: "Beam search with width k over vocabulary V, per step, costs about…",
+    options: [
+      "O(k·V log k) — score k·V continuations, keep the top k with a bounded heap",
+      "O(V²) — all pairs of tokens",
+      "O(k²) — beams compared with each other",
+      "O(V log V) — a full sort of the vocabulary"
+    ],
+    answer: 0,
+    explain: "Each of k beams proposes V continuations; a size-k min-heap (23's doorman) filters in log k. Avoiding the full V log V sort is exactly the top-K pattern's point."
+  },
+  {
+    prompt: "Autograd needs REVERSE topological order (30), while the forward pass needs forward order, because…",
+    options: [
+      "forward: inputs before consumers; backward: gradients flow from consumers back to producers — the same DAG with dependencies flipped",
+      "the backward pass is faster in reverse",
+      "reverse order avoids cycles in the graph",
+      "gradients are stored in a queue"
+    ],
+    answer: 0,
+    explain: "One DAG, two dependency directions. dL/dx needs every consumer of x resolved first — edges reversed, same algorithm. If this answer felt easy, your mission's 'read architectures' goal is genuinely underway."
+  },
+  {
+    prompt: "Dataset dedup unions documents whose MinHash signatures collide. Union-Find fits (vs. DFS on a similarity graph) because…",
+    options: [
+      "pairs arrive incrementally from the hashing pass — merge-as-you-go at O(α) beats building the whole graph first",
+      "DFS cannot handle a billion nodes",
+      "union-find stores the documents themselves",
+      "similarity graphs always contain cycles"
+    ],
+    answer: 0,
+    explain: "Streaming merges with interleaved membership queries = dynamic connectivity (31's exact niche). At pretraining scale, 'effectively constant' per pair is the difference between feasible and not."
+  },
+  {
+    prompt: "The single most reused PROOF technique across this course was…",
+    options: [
+      "amortization — charge work to elements (each pushed/popped/evicted once), not to iterations",
+      "proof by exhaustive case enumeration",
+      "diagonalization",
+      "induction on the number of test cases"
+    ],
+    answer: 0,
+    explain: "Dynamic arrays (03), windows (08), monotonic stacks (10), BFS marking (28), rate limiters (44) — one argument, five costumes. Recognizing proofs as patterns is the deepest kind of pattern recognition this course teaches."
+  }
+]);
+</script>
+</body>
+</html>

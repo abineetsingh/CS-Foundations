@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 14 — Binary Search I</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 14 · Phase 1 · ~25 minutes</span>
+  <h1>Binary Search I: The Sorted-Array Classic</h1>
+  <p class="lede">Today's skill: write a binary search that is correct the first time — using an invariant, not luck.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this, now</span>
+    <p>Binary search is the canonical O(log n) algorithm — the payoff of Lesson 01's "halving" intuition. It's also famously easy to get subtly wrong: the first published binary search took years to debug, and most candidates still fumble the boundaries. Writing it invariant-first is a visible skill signal.</p>
+  </div>
+
+  <h2>The idea</h2>
+  <p>In a sorted array, comparing the target to the <em>middle</em> element eliminates half the candidates — the same "provable elimination" logic as two pointers (Lesson <a href="./06-two-pointers.html">06</a>), but discarding half instead of one. Halving n until 1 takes log₂n steps: <strong>O(log n)</strong>. A billion elements → ~30 comparisons.</p>
+
+  <h2>The template — and the invariant that makes it correct</h2>
+  <pre><code>def binary_search(arr, target):
+    lo, hi = 0, len(arr) - 1          # candidates live in [lo, hi]
+    while lo &lt;= hi:                   # inclusive range → &lt;=
+        mid = (lo + hi) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] &lt; target:
+            lo = mid + 1              # mid is ruled out → step PAST it
+        else:
+            hi = mid - 1              # mid is ruled out → step PAST it
+    return -1                          # range empty: not present</code></pre>
+  <p>The <strong>invariant</strong>: <em>if the target exists, it is within [lo, hi]</em>. Every line serves it:</p>
+  <ul>
+    <li><code>lo &lt;= hi</code>: the range [lo, hi] is only empty when lo &gt; hi — stop exactly then.</li>
+    <li><code>mid ± 1</code>: <code>arr[mid]</code> was examined and ruled out, so exclude it — keeping it (e.g. <code>lo = mid</code>) can loop forever when the range narrows to one element.</li>
+    <li>Progress: each iteration strictly shrinks the range → termination is guaranteed.</li>
+  </ul>
+  <p>When you're unsure about a boundary, don't pattern-match — ask <em>"does this line preserve the invariant?"</em> That question repairs any variant you'll ever write.</p>
+
+  <link rel="stylesheet" href="../assets/viz.css">
+  <div id="viz-bs"></div>
+  <script src="../assets/viz.js"></script>
+  <script>
+  (function () {
+    const a = [1, 3, 4, 6, 8, 11, 15];
+    function pt(o, i, lab) { o[i] = o[i] ? o[i] + " " + lab : lab; return o; }
+    function make(v) {
+      const t = Number(v.target), fr = [];
+      const dim = new Set();
+      let lo = 0, hi = a.length - 1;
+      fr.push({ cells: a.slice(), ptrs: pt(pt({}, lo, "lo"), hi, "hi"),
+        note: `Searching for ${t}. Invariant: if ${t} exists, it lies within [lo, hi]. Faded cells are PROVABLY ruled out.` });
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const cells = a.map((x, i) => dim.has(i) ? { v: x, cls: "dim" } :
+          (i === mid ? { v: x, cls: a[mid] === t ? "good" : "hl" } : x));
+        const ps = pt(pt(pt({}, lo, "lo"), hi, "hi"), mid, "mid");
+        if (a[mid] === t) {
+          fr.push({ cells: cells, ptrs: ps,
+            note: `a[${mid}] = ${t} — found, in ${fr.length} comparison${fr.length === 1 ? "" : "s"}. (A linear scan could take up to ${a.length}.)` });
+          return fr;
+        }
+        if (a[mid] < t) {
+          fr.push({ cells: cells, ptrs: ps,
+            note: `a[${mid}] = ${a[mid]} &lt; ${t}: sortedness rules out EVERYTHING up to index ${mid}. lo = mid + 1 — step PAST the examined mid.` });
+          for (let i = lo; i <= mid; i++) dim.add(i);
+          lo = mid + 1;
+        } else {
+          fr.push({ cells: cells, ptrs: ps,
+            note: `a[${mid}] = ${a[mid]} &gt; ${t}: everything from index ${mid} up is ruled out. hi = mid &#8722; 1.` });
+          for (let i = mid; i <= hi; i++) dim.add(i);
+          hi = mid - 1;
+        }
+      }
+      fr.push({ cells: a.map(x => ({ v: x, cls: "dim" })),
+        note: `Range empty (lo &gt; hi) — ${t} is NOT present, and the invariant makes that conclusive, not a guess.` });
+      return fr;
+    }
+    Viz.runnable("viz-bs", { caption: "run binary search yourself on [1, 3, 4, 6, 8, 11, 15]",
+      controls: [{ key: "target", label: "target", type: "number", value: 6, min: 0, max: 20 }],
+      make: make, view: Viz.array });
+  })();
+  </script>
+
+  <h2>The variant you actually need: leftmost position</h2>
+  <p>Interviews rarely want "any match" — they want the <em>first</em> position where the target could go (handles duplicates, absent targets, insertion points):</p>
+  <pre><code>def leftmost(arr, target):            # first index i with arr[i] >= target
+    lo, hi = 0, len(arr)              # note: hi = n, range is [lo, hi)
+    while lo &lt; hi:
+        mid = (lo + hi) // 2
+        if arr[mid] &lt; target:
+            lo = mid + 1
+        else:
+            hi = mid                  # arr[mid] >= target: mid stays a candidate
+    return lo</code></pre>
+  <p>This is exactly Python's <code>bisect.bisect_left</code> — know the module exists, and be able to write it anyway.</p>
+
+  <div class="ml-link">
+    <span class="callout-label">Mission link · ML/AI</span>
+    <p>Remember Lesson 09's cumulative distribution? Sampling a token = drawing a random number and binary-searching the CDF for where it lands — <code>bisect</code> over prefix sums. Also everywhere in ML tooling: hyperparameter bisection, finding the largest batch size that fits in memory (binary search on "does it OOM?"), git bisect for regressions.</p>
+  </div>
+
+  <h2>Practice</h2>
+  <div id="quiz"></div>
+
+  <h2>After this lesson</h2>
+  <ul>
+    <li><strong>Primary source</strong>: NeetCode roadmap → <a href="https://neetcode.io/roadmap">Binary Search section</a>, "Binary Search" video.</li>
+    <li>Problems: "Binary Search", "Search Insert Position", "First Bad Version".</li>
+  </ul>
+
+  <div class="note">
+    <span class="callout-label">Your teacher</span>
+    <p>The two templates differ in THREE places (hi's initial value, the loop condition, the hi update) — and the differences are all consequences of inclusive [lo,hi] vs half-open [lo,hi). Ask Claude Code to drill you on deriving one from the other.</p>
+  </div>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="13-linked-lists-ii.html">← 13 Linked lists II</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="15-binary-search-ii.html">15 Binary search II →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script>
+renderQuiz("quiz", [
+  {
+    prompt: "Binary search on 1,000,000,000 sorted elements needs about how many comparisons?",
+    options: ["30", "1,000", "31,623", "1,000,000"],
+    answer: 0,
+    explain: "log₂(10⁹) ≈ 30. Halving is absurdly powerful — this number is why sorted order is worth maintaining. (31,623 is √10⁹ — a different, weaker speedup.)"
+  },
+  {
+    code: "while lo <= hi:\n    mid = (lo + hi) // 2\n    if arr[mid] < target:\n        lo = mid          # ← bug\n    else:\n        hi = mid - 1",
+    prompt: "What does lo = mid (instead of mid + 1) cause?",
+    options: [
+      "an infinite loop when the range narrows to one element",
+      "a wrong answer only for targets at index 0",
+      "nothing — mid is re-examined harmlessly",
+      "an IndexError when lo equals hi"
+    ],
+    answer: 0,
+    explain: "With lo == hi == mid and arr[mid] < target: lo = mid changes nothing — the range never shrinks. The invariant question ('is mid ruled out?') catches this instantly: yes, so step past it."
+  },
+  {
+    prompt: "Binary search requires sorted input because…",
+    options: [
+      "one comparison must prove which half CANNOT contain the target",
+      "unsorted arrays cannot compute a middle index",
+      "duplicate values are only detectable in sorted order",
+      "the O(log n) bound only counts comparisons on sorted data"
+    ],
+    answer: 0,
+    explain: "arr[mid] < target justifies discarding [lo, mid] only if everything left of mid is ≤ arr[mid]. Sortedness is what makes elimination sound — the same principle as two pointers."
+  },
+  {
+    code: "arr = [1, 3, 3, 3, 7]\nbisect.bisect_left(arr, 3)",
+    prompt: "What does this return?",
+    options: ["1", "2", "3", "0"],
+    answer: 0,
+    explain: "bisect_left finds the FIRST position where 3 could be inserted keeping order — index 1, before all existing 3s. (bisect_right would give 4.)"
+  },
+  {
+    prompt: "Review from 13: in reverse_list, why must nxt = current.next run before current.next = prev?",
+    options: [
+      "flipping the arrow first destroys the only reference to the rest of the list",
+      "Python evaluates assignments right-to-left otherwise",
+      "prev must be non-None before any flip",
+      "it avoids an extra O(n) pass at the end"
+    ],
+    answer: 0,
+    explain: "current.next is the sole route forward. Overwrite it unsaved and the unvisited suffix is garbage-collected into oblivion. Save, flip, advance, advance."
+  }
+]);
+</script>
+</body>
+</html>

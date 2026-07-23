@@ -160,11 +160,30 @@ th {
   color: var(--muted);
 }
 
+.lesson-nav p { line-height: 1.8; }
+.authorship { font-size: 0.88rem; letter-spacing: 0.01em; }
+
+/* Book-style table of contents */
+.book-toc { margin-top: 2rem; }
+.toc-phase { margin: 2rem 0 2.5rem; }
+.toc-phase ol { list-style: none; margin: 0; padding: 0; }
+.toc-phase li { border-bottom: 1px solid var(--rule); }
+.toc-phase li:first-child { border-top: 1px solid var(--rule); }
+.toc-phase li a {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr;
+  gap: 0.75rem;
+  padding: 0.65rem 0.25rem;
+  border-bottom: 0;
+}
+.toc-phase li a:hover { background: var(--code-bg); }
+.toc-number { color: var(--muted); font-family: "SFMono-Regular", Consolas, monospace; }
+
 /* Print */
 @media print {
   html { font-size: 11pt; }
   main { max-width: 100%; padding: 0; }
-  .quiz, .no-print { display: none; }
+  .quiz, .no-print, .lesson-nav { display: none; }
   a { color: var(--ink); border-bottom: none; }
   pre { border: 1px solid #999; }
 }

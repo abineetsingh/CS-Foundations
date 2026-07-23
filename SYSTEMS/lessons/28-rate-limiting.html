@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 28 — Rate Limiting &amp; Load Shedding</title>
+<link rel="stylesheet" href="../assets/course.css">
+<link rel="stylesheet" href="../assets/sysviz.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Lesson 28 · ~30 minutes · Systems Design · hands-on · Phase 3</span>
+  <h1>Rate Limiting &amp; Load Shedding</h1>
+  <p class="lede">One skill, learned today: bound how fast each client may hit you — token bucket in your own code — and shed load gracefully when everyone arrives at once.</p>
+
+  <div class="mission">
+    <span class="callout-label">Why this matters</span>
+    <p>"Design a rate limiter" is a top-five interview question in its own right — and every API you'll ever ship (or call: remember the 429s from lesson 02?) has one. It's also half of a deeper production creed: <em>a system that can't say no will be destroyed by yes.</em></p>
+  </div>
+
+  <h2>Token bucket: the algorithm to know cold</h2>
+  <p>Each client gets a bucket holding up to <code>burst</code> tokens, refilled at <code>rate</code> tokens/second. A request costs one token: token available → allow; bucket empty → <strong>429</strong> with a <code>Retry-After</code> header. The beauty: it permits natural burstiness (a page load firing 10 quick calls) while enforcing the long-run average <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/design-a-rate-limiter">[Hello Interview: rate limiter]</a>. Alternatives to name and drop: <em>fixed window</em> (simple; 2× bursts at window edges), <em>sliding window log</em> (exact; costly), <em>sliding window counter</em> (the practical middle). Token bucket is the default answer.</p>
+  <p>Where does the state live? For one server, a dict. For a fleet (07: any request, any server), the buckets must be shared — <strong>Redis</strong>, with the check-and-decrement done atomically (a Lua script or atomic ops — the lost-update lesson 14 again, at the cache layer!). Big fleets often accept per-node <em>local</em> limiting (limit ÷ N per node) — slightly loose, zero shared-state latency: a classic accuracy-vs-cost call, eventual-consistency thinking (18) applied to counters.</p>
+
+  <h2>Hands-on: token bucket in 25 lines (15 min)</h2>
+  <pre><code>import time
+
+class TokenBucket:
+    def __init__(self, rate: float, burst: int):
+        self.rate, self.burst = rate, burst
+        self.tokens, self.last = float(burst), time.monotonic()
+
+    def allow(self) -&gt; bool:
+        now = time.monotonic()
+        self.tokens = min(self.burst, self.tokens + (now - self.last) * self.rate)
+        self.last = now
+        if self.tokens &gt;= 1:
+            self.tokens -= 1
+            return True
+        return False
+
+bucket = TokenBucket(rate=2, burst=5)        # 2 req/s sustained, bursts of 5
+for i in range(12):
+    print(f"req {i:2d}: {'ALLOW' if bucket.allow() else '429 '}")
+    time.sleep(0.2)                          # 5 req/s attempted — too fast!</code></pre>
+  <p>Run it: the first 5 fly (burst), then allows come only as the 2/s refill drips in — attempted 5/s throttled to the contract. Lazy refill (compute on demand from elapsed time — no background timer) is the trick worth remembering; it's how real implementations work. Wire it into your notes API as a FastAPI dependency keyed by client IP if you want the full experience.</p>
+
+  <h2>Load shedding: rate limiting's system-wide sibling</h2>
+  <p>Rate limiting is per-client fairness. <a href="../reference/glossary.html#load-shedding">Load shedding</a> is self-preservation: when <em>total</em> load nears capacity, reject early and cheaply (fast 503 + <code>Retry-After</code> at the front door) rather than accept work you'll fail slowly — because overload latency climbs, callers time out and retry (22), adding load exactly when you can least afford it: the <a href="../reference/glossary.html#retry-storm">retry storm</a> death spiral. Shedding breaks the spiral <a href="https://sre.google/sre-book/handling-overload/">[Google SRE: handling overload]</a>. Refinements that mark seniority: shed by <em>priority</em> (drop analytics pings, keep checkouts) and put degraded modes between "full service" and "shed" (serve cached/stale, disable expensive features — graceful degradation, expanded in 36).</p>
+  <div id="flow"></div>
+
+  <div class="ml-link">
+    <span class="callout-label">AI-lab tie-in</span>
+    <p>LLM APIs are rate limiting's most visible modern deployment — but with a twist you now appreciate: limits are enforced in <em>tokens per minute</em>, not requests, because cost scales with tokens. Same bucket algorithm, cost-proportional debiting (a 4,000-token request debits 4,000). And when GPU fleets saturate, priority shedding decides: batch jobs wait, interactive chats go first.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <div id="quiz"></div>
+
+  <h2>Go deeper</h2>
+  <p>Primary source: <a href="https://www.hellointerview.com/learn/system-design/problem-breakdowns/design-a-rate-limiter">Hello Interview — Design a Rate Limiter</a> (25 min): the full interview treatment, including the distributed-state discussion you're now equipped for.</p>
+
+  <footer class="lesson-footer">
+    <nav class="lesson-nav" aria-label="Lesson navigation">
+      <p><a rel="prev" href="27-distributed-transactions.html">← 27 Distributed transactions</a> · <a href="../00-table_of_contents.html">Table of contents</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a rel="next" href="29-realtime-delivery.html">29 Realtime delivery →</a></p>
+    </nav>
+    <p>Questions or something unclear? Ask your teacher before moving on.</p>
+    <p class="authorship">Authored by: Abineet Singh | July 2026</p>
+  </footer>
+</main>
+
+<script src="../assets/quiz.js"></script>
+<script src="../assets/sysviz.js"></script>
+<script>
+renderFlow("flow", {
+  nodes: [
+    { id: "good", label: "Normal client", sub: "2 req/s" },
+    { id: "greedy", label: "Greedy script", sub: "500 req/s" },
+    { id: "gw", label: "API gateway", sub: "buckets in Redis" },
+    { id: "app", label: "App fleet", sub: "capacity: 1000 QPS", row: 1 },
+  ],
+  links: [["good","gw"], ["greedy","gw"], ["gw","app"]],
+  steps: [
+    { from: "good", to: "gw", packet: "req (token: ✓)",
+      caption: "Normal client: bucket has tokens, request passes, one token debited. They never notice the limiter exists — the ideal." },
+    { from: "greedy", to: "gw", packet: "500 req/s !!",
+      caption: "A greedy script hammers at 500 req/s against a 10 req/s contract. Its bucket's burst absorbs the first spike…" },
+    { from: "gw", to: "greedy", packet: "429 + Retry-After: 3",
+      caption: "…then empties. 429s with Retry-After — cheap to serve, honest, and fair: ONE abuser throttled without touching anyone else. Per-client fairness is rate limiting's job." },
+    { at: "gw",
+      caption: "Different threat: no single abuser, but 100,000 legitimate clients arrive at once (flash sale). Every bucket is individually fine; the SUM is 5× fleet capacity. Rate limiting can't help — this is load shedding's job." },
+    { from: "gw", to: "app", packet: "1000 QPS (capacity)",
+      caption: "The gateway admits up to measured capacity — prioritizing checkouts over analytics — and fast-503s the excess at the front door. Cheap rejections instead of slow universal failure." },
+    { at: ["gw", "app"],
+      caption: "Why shedding beats accepting: overloaded latency → client timeouts → retries → MORE load → the retry-storm spiral. Saying no early breaks the loop. A system that can't say no will be destroyed by yes." },
+  ],
+});
+
+renderQuiz("quiz", [
+  { prompt: "Token bucket beats a fixed 10-per-minute window because it…",
+    options: [
+      "allows bursts within the average",
+      "requires no memory per client",
+      "never returns 429 to clients",
+      "synchronizes clocks across the fleet",
+    ],
+    answer: 0,
+    explain: "Real traffic is bursty (page load = 10 instant calls). The bucket permits burst-sized spikes while the refill rate enforces the sustained average. Fixed windows also allow 2× bursts at edges — worst of both." },
+  { prompt: "Rate limiting vs load shedding, in one line:",
+    options: [
+      "per-client fairness versus total self-preservation",
+      "reads protected versus writes protected",
+      "gateway enforced versus database enforced",
+      "429 responses versus 404 responses",
+    ],
+    answer: 0,
+    explain: "Limiting caps each client's contract (one abuser can't hurt others). Shedding caps the SUM (a million innocents can). Full systems need both." },
+  { prompt: "Under overload, accepting all requests causes collapse via…",
+    options: [
+      "timeouts triggering retries, multiplying load",
+      "memory leaks in the connection pool",
+      "databases rejecting the excess writes",
+      "load balancers marking everyone unhealthy",
+    ],
+    answer: 0,
+    explain: "Slow responses → client timeouts (22) → retries arrive ON TOP of originals → more overload → slower still. The retry storm. Fast, cheap rejections are the circuit breaker." },
+  { prompt: "Fleet-wide buckets live in Redis, and the check-and-debit must be atomic, because otherwise…",
+    options: [
+      "racing servers both spend one token",
+      "Redis evicts the buckets under pressure",
+      "tokens refill twice per second",
+      "each server needs its own bucket",
+    ],
+    answer: 0,
+    explain: "Read-then-write from two servers = the lost update (14) at the cache layer: both see 1 token, both allow. Atomic ops or a Lua script make check+debit one indivisible step." },
+  { prompt: "Spaced review — Lesson 22: a well-behaved client receiving 429 + Retry-After: 3 should…",
+    options: [
+      "wait three-plus seconds, then retry",
+      "retry immediately on another connection",
+      "switch to a different API key",
+      "treat the request as permanently failed",
+    ],
+    answer: 0,
+    explain: "Honor the header (it IS the backoff hint), add jitter, cap attempts. Immediate retry is exactly the pounding the limiter exists to stop — and key-switching is abuse." },
+]);
+</script>
+</body>
+</html>
