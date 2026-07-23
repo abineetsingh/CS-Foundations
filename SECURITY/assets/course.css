@@ -1,0 +1,34 @@
+@import url("../../SYSTEMS/assets/course.css");
+
+:root {
+  --accent: #8b1e3f;
+  --security: #8b1e3f;
+  --security-soft: #f8edf1;
+}
+
+.security-loop {
+  margin: 1.4rem 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #fdfdf8;
+}
+
+.security-loop ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.safety {
+  margin: 1.6rem 0;
+  padding: 0.9rem 1.2rem;
+  border-left: 3px solid #996515;
+  background: #fff7df;
+  border-radius: 0 6px 6px 0;
+}
+
+.safety p:last-child { margin-bottom: 0; }
+
+@media print {
+  .secviz-controls { display: none; }
+}

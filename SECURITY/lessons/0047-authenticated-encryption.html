@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0047 — Authenticated Encryption</title>
+<link rel="stylesheet" href="../assets/course.css"><link rel="stylesheet" href="../assets/secviz.css"></head><body><main>
+<span class="kicker">Lesson 0047 · ~30 minutes · Phase 6 · Practical Cryptography for Builders</span>
+<h1>Authenticated Encryption</h1><p class="lede">One skill, learned today: protect confidentiality and integrity with a high-level AEAD interface.</p>
+<div class="mission"><span class="callout-label">Mission connection</span><p>This skill supports both sides of the mission: explain the security decision clearly under interview pressure, then apply it to production software in a way that survives different clients, frameworks, and deployment stacks.</p></div>
+
+
+<h2>The security model</h2><p>AEAD encrypts plaintext and authenticates ciphertext plus unencrypted associated context under one key.</p>
+<table><tr><th>Question</th><th>Answer to make explicit</th></tr>
+<tr><td>What must remain true?</td><td>Write one observable invariant before choosing a tool or payload.</td></tr>
+<tr><td>Where is it decided?</td><td>Name the component holding authoritative identity, state, or key material.</td></tr>
+<tr><td>What can the adversary vary?</td><td>List reachable inputs, ordering, timing, identity, dependencies, and failure paths.</td></tr>
+<tr><td>What proves the control?</td><td>Keep legitimate behavior passing and adversarial behavior failing for the intended reason.</td></tr></table>
+
+<h2>The failure pattern</h2><p>Nonce reuse, unauthenticated CBC or CTR, ignored tag failures, and ambiguous envelope formats destroy guarantees.</p>
+<div class="note"><span class="callout-label">Root-cause question</span><p>Do not ask only “which payload works?” Ask: <em>which trusted interpretation, policy decision, state transition, or authority changed because of attacker-controlled data or timing?</em> That answer transfers across Python, JavaScript, web, mobile-backed APIs, services, and cloud platforms.</p></div>
+
+<h2>Watch the decision cross its boundary</h2><div id="flow"></div>
+
+
+<h2>Design the durable control</h2><p>Use AES-GCM or ChaCha20-Poly1305 through maintained libraries, guarantee nonce rules, version envelopes, and bind context as AAD.</p>
+<p>Prefer controls that make the safe path easy and centralized. Prevention addresses the root transition; containment limits blast radius if prevention fails; detection makes unexpected use visible. These layers should fail independently rather than repeat the same assumption three times.</p>
+<h2>Production implementation shape</h2><h3>Python: high-level AEAD</h3><pre><code>python -m pip install cryptography
+
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+key = AESGCM.generate_key(bit_length=256)
+nonce = os.urandom(12)  # must never repeat under this key
+ciphertext = AESGCM(key).encrypt(nonce, plaintext, associated_data)
+recovered = AESGCM(key).decrypt(nonce, ciphertext, associated_data)</code></pre><p>Store a versioned envelope containing nonce and ciphertext; keep the key in a managed key boundary, not beside the record.</p>
+
+<h2>Verify instead of believing</h2><p>Test bit flips, wrong AAD, wrong key, truncated data, nonce strategy, version migration, and failure without plaintext release.</p>
+<pre><code># Security regression shape
+assert legitimate_case().allowed
+assert adversarial_case().denied_for_expected_reason
+assert sibling_path_case().preserves_same_invariant
+assert failure_path_case().fails_safely</code></pre>
+
+<h2>Practice the complete loop</h2><div class="safety"><span class="callout-label">Practice · code or design microscope</span>
+    <p><strong>Scope:</strong> the synthetic scenario on this page and files you create specifically for it. Do not point tools at third-party hosts. <strong>Stop:</strong> when one piece of evidence proves or disproves the stated invariant.</p></div>
+    <ol><li>Write the intended invariant in one sentence.</li><li>Construct one valid case and one adversarial or boundary case.</li><li>Trace the decision to the authoritative component; do not rely on UI behavior.</li><li>Apply the control, rerun both cases, and preserve the denied-case regression.</li></ol>
+
+<h2>Check yourself</h2><p>Retrieve the model before selecting an answer. Options are shuffled; explanations complete the feedback loop.</p><div id="quiz"></div>
+
+<h2>Go deeper</h2><p>Primary source: <a href="https://cryptography.io/en/latest/hazmat/primitives/aead/">Cryptography.io AEAD Primitives</a>. Read the overview and defensive guidance now; use advanced exploitation material only inside its explicit training scope.</p>
+<div class="lesson-footer"><p><a href="0046-randomness-hashes-and-macs.html">◀ 0046 Randomness, Hashes, and MACs</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="../reference/security-review-runbook.html">Review runbook</a> · <a href="0048-public-keys-signatures-key-agreement.html">0048 Public Keys, Signatures, and Key Agreement ▶</a></p><p>Anything unclear—especially the invariant, authority, or evidence? Ask your teacher before moving on.</p></div>
+
+<script src="../assets/quiz.js"></script><script src="../assets/secviz.js"></script><script>
+renderSecurityFlow("flow", { boundary: "authoritative security boundary", nodes: [
+  {id:"input",label:"Engineering change",detail:"adversary can influence"},{id:"decision",label:"Security control",detail:"policy must be explicit"},{id:"asset",label:"Verification evidence",detail:"impact becomes real"}], steps: [
+  {at:"input",packet:"baseline case",caption:"Begin with intended behavior and record the actor, input, state, and expected result."},
+  {at:"decision",packet:"trusted interpretation",position:"middle",caption:"Trace where raw input becomes a parsed value, identity, policy decision, state transition, or privileged operation."},
+  {at:"asset",packet:"intended result",position:"end",caption:"The baseline preserves the invariant and reaches the protected asset only under allowed conditions."},
+  {at:"input",packet:"adversarial variation",attack:true,caption:"Change one capability at a time: value, encoding, identity, order, timing, dependency response, or failure path."},
+  {at:"decision",violated:"decision",packet:"policy violation",position:"middle",attack:true,caption:"Nonce reuse, unauthenticated CBC or CTR, ignored tag failures, and ambiguous envelope formats destroy guarantees."},
+  {at:"decision",packet:"control + evidence",position:"middle",caption:"Use AES-GCM or ChaCha20-Poly1305 through maintained libraries, guarantee nonce rules, version envelopes, and bind context as AAD. Verification: Test bit flips, wrong AAD, wrong key, truncated data, nonce strategy, version migration, and failure without plaintext release."}
+]});
+
+renderQuiz("quiz", [
+  { prompt: "Model — AEAD encrypts plaintext and authenticates ciphertext plus unencrypted associated context under one key. What should you identify next?", options: ["Locate the authoritative decision and write its invariant", "Choose a scanner and accept its default severity", "Hide the feature and trust ordinary client behavior", "Add encryption before mapping assets and attacker capabilities"], answer: 0, explain: "The model becomes actionable only when its invariant and authoritative decision are explicit. Nonce reuse, unauthenticated CBC or CTR, ignored tag failures, and ambiguous envelope formats destroy guarantees." },
+  { prompt: "Failure — Nonce reuse, unauthenticated CBC or CTR, ignored tag failures, and ambiguous envelope formats destroy guarantees. Which response addresses the root cause?", options: ["Remove the unsafe transition at its authoritative boundary", "Block the demonstrated string at the outer proxy", "Document the risk and rely on careful operators", "Increase logging while preserving the same vulnerable behavior"], answer: 0, explain: "Use AES-GCM or ChaCha20-Poly1305 through maintained libraries, guarantee nonce rules, version envelopes, and bind context as AAD. Root-cause repair outlives one payload or interface." },
+  { prompt: "Control — Use AES-GCM or ChaCha20-Poly1305 through maintained libraries, guarantee nonce rules, version envelopes, and bind context as AAD. What evidence should close the work?", options: ["Test allowed denied sibling and exceptional behavior together", "Confirm only the original proof now returns failure", "Verify new validation code appears during review today", "Trust the scanner when its warning disappears completely"], answer: 0, explain: "Test bit flips, wrong AAD, wrong key, truncated data, nonce strategy, version migration, and failure without plaintext release. Closure needs behavioral evidence plus preserved legitimate use." },
+  { prompt: "Spaced review — Randomness, Hashes, and MACs: Estimate entropy, check uniqueness at scale, mutate every message field, use wrong keys, and verify stable rejection. What kind of evidence is this?", options: ["Verification tests behavior across adversarial boundary conditions explicitly", "Prevention removes one exact payload from incoming requests", "Containment replaces all root-cause engineering work permanently today", "Detection proves the vulnerability can never recur again"], answer: 0, explain: "Verification challenges the claimed property under allowed, denied, variant, and failure conditions; it does not merely inspect implementation." }
+]);
+</script></main></body></html>

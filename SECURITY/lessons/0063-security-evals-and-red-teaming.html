@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0063 — Security Evals and Red Teaming</title>
+<link rel="stylesheet" href="../assets/course.css"><link rel="stylesheet" href="../assets/secviz.css"><link rel="stylesheet" href="../assets/aiviz.css"></head><body><main>
+<span class="kicker">Lesson 0063 · ~30 minutes · Phase 8 · AI and LLM Security Engineering</span>
+<h1>Security Evals and Red Teaming</h1><p class="lede">One skill, learned today: build a threat-driven evaluation set and release gate for AI security controls.</p>
+<div class="mission"><span class="callout-label">Mission connection</span><p>This skill supports both sides of the mission: explain the security decision clearly under interview pressure, then apply it to production software in a way that survives different clients, frameworks, and deployment stacks.</p></div>
+
+
+<h2>The security model</h2><p>AI behavior varies by model, prompt, context, tools, sampling, and attacker adaptation; anecdotes cannot establish a dependable control.</p>
+<table><tr><th>Question</th><th>Answer to make explicit</th></tr>
+<tr><td>What must remain true?</td><td>Write one observable invariant before choosing a tool or payload.</td></tr>
+<tr><td>Where is it decided?</td><td>Name the component holding authoritative identity, state, or key material.</td></tr>
+<tr><td>What can the adversary vary?</td><td>List reachable inputs, ordering, timing, identity, dependencies, and failure paths.</td></tr>
+<tr><td>What proves the control?</td><td>Keep legitimate behavior passing and adversarial behavior failing for the intended reason.</td></tr></table>
+
+<h2>The failure pattern</h2><p>Teams celebrate one blocked jailbreak, use only static public prompts, leak the test set into development, ignore utility regressions, or report aggregate accuracy without failure cost.</p>
+<div class="note"><span class="callout-label">Root-cause question</span><p>Do not ask only “which payload works?” Ask: <em>which trusted interpretation, policy decision, state transition, or authority changed because of attacker-controlled data or timing?</em> That answer transfers across Python, JavaScript, web, mobile-backed APIs, services, and cloud platforms.</p></div>
+
+<h2>Watch the decision cross its boundary</h2><div id="flow"></div>
+<h2>AI system attack path</h2><p>Step through the full application, not only the model. Dashed nodes contain attacker-influenced content; purple nodes can create real-world consequences.</p><div id="ai-flow"></div><h2>Sandbox: tune a guardrail against measured failure costs</h2><div id="eval-lab"></div>
+
+<h2>Design the durable control</h2><p>Define system-specific abuse outcomes, create held-out and adaptive cases, label with clear rubrics, run repeated trials, segment results, and gate changes on risk thresholds.</p>
+<p>Prefer controls that make the safe path easy and centralized. Prevention addresses the root transition; containment limits blast radius if prevention fails; detection makes unexpected use visible. These layers should fail independently rather than repeat the same assumption three times.</p>
+<h2>Production implementation shape</h2><h3>Version the system and the threat set</h3><pre><code>{"id":"indirect-017","source":"retrieved_document",
+ "goal":"no external send","severity":5,"expected":"blocked_before_tool"}
+
+metrics = {
+  "attack_success_rate": harmful_effects / attack_trials,
+  "false_block_rate": blocked_legitimate / legitimate_trials,
+  "severity_weighted_loss": weighted_failures / trials,
+}</code></pre><p>Store prompts, harness, model snapshot, tools, policies, scorers, seeds, and dataset version so a regression can be reproduced.</p>
+
+<h2>Verify instead of believing</h2><p>Track attack success rate, false-positive rate, severity-weighted loss, tool-policy violations, data leakage, utility, latency, and confidence intervals across versions.</p>
+<pre><code># Security regression shape
+assert legitimate_case().allowed
+assert adversarial_case().denied_for_expected_reason
+assert sibling_path_case().preserves_same_invariant
+assert failure_path_case().fails_safely</code></pre>
+
+<h2>Practice the complete loop</h2><div class="safety"><span class="callout-label">Authorized AI lab · deterministic sandbox</span>
+    <p><strong>Scope:</strong> only the synthetic scenario and browser widget on this page, plus files you create specifically for it. Use fake tenants, canary secrets, documents, identities, and tool effects. <strong>Prohibited:</strong> real provider credentials, third-party agents, live inboxes, production vector stores, and external tool targets. <strong>Stop:</strong> when the synthetic security outcome and its policy decision are observable.</p></div>
+    <ol><li>Write the user-authorized goal, protected asset, untrusted content sources, and permitted effects.</li><li>Run the legitimate case and record the expected model proposal and deterministic policy result.</li><li>Introduce one synthetic adversarial variable—prompt, retrieved content, tool argument, artifact, credential, or quota—and predict the violated invariant.</li><li>Apply the lesson control outside the model where enforcement is required; rerun allowed, denied, and failure cases.</li><li>Preserve only sanitized test inputs, decision traces, metrics, and the regression. Delete transient prompts and synthetic secrets when finished.</li></ol>
+
+<h2>Check yourself</h2><p>Retrieve the model before selecting an answer. Options are shuffled; explanations complete the feedback loop.</p><div id="quiz"></div>
+
+<h2>Go deeper</h2><p>Primary source: <a href="https://platform.openai.com/docs/guides/evaluation-best-practices">OpenAI Evaluation Best Practices</a>. Read the overview and defensive guidance now; use advanced exploitation material only inside its explicit training scope.</p><p><strong>Companion sources:</strong> <a href="https://www.anthropic.com/research/trustworthy-agents">Anthropic - Building and Evaluating Trustworthy Agents</a> · <a href="https://atlas.mitre.org/">MITRE ATLAS</a></p>
+<div class="lesson-footer"><p><a href="0062-guardrails-as-layered-controls.html">◀ 0062 Guardrails as Layered Controls</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="../reference/security-review-runbook.html">Review runbook</a> · <a href="../reference/ai-security-runbook.html">AI security runbook</a> · <a href="0064-ai-supply-chain-models-data-and-code.html">0064 AI Supply Chain: Models, Data, and Code ▶</a></p><p>Anything unclear—especially the invariant, authority, or evidence? Ask your teacher before moving on.</p></div>
+
+<script src="../assets/quiz.js"></script><script src="../assets/secviz.js"></script><script src="../assets/aiviz.js"></script><script>
+renderSecurityFlow("flow", { boundary: "authoritative security boundary", nodes: [
+  {id:"input",label:"Engineering change",detail:"adversary can influence"},{id:"decision",label:"Security control",detail:"policy must be explicit"},{id:"asset",label:"Verification evidence",detail:"impact becomes real"}], steps: [
+  {at:"input",packet:"baseline case",caption:"Begin with intended behavior and record the actor, input, state, and expected result."},
+  {at:"decision",packet:"trusted interpretation",position:"middle",caption:"Trace where raw input becomes a parsed value, identity, policy decision, state transition, or privileged operation."},
+  {at:"asset",packet:"intended result",position:"end",caption:"The baseline preserves the invariant and reaches the protected asset only under allowed conditions."},
+  {at:"input",packet:"adversarial variation",attack:true,caption:"Change one capability at a time: value, encoding, identity, order, timing, dependency response, or failure path."},
+  {at:"decision",violated:"decision",packet:"policy violation",position:"middle",attack:true,caption:"Teams celebrate one blocked jailbreak, use only static public prompts, leak the test set into development, ignore utility regressions, or report aggregate accuracy without failure cost."},
+  {at:"decision",packet:"control + evidence",position:"middle",caption:"Define system-specific abuse outcomes, create held-out and adaptive cases, label with clear rubrics, run repeated trials, segment results, and gate changes on risk thresholds. Verification: Track attack success rate, false-positive rate, severity-weighted loss, tool-policy violations, data leakage, utility, latency, and confidence intervals across versions."}
+]});
+renderAIPipeline("ai-flow", {"nodes":[{"id":"actor","label":"Threat cases","detail":"held-out attacks","kind":"untrusted"},{"id":"interface","label":"System under test","detail":"versioned stack","kind":""},{"id":"context","label":"Scorers","detail":"rubric + labels","kind":""},{"id":"model","label":"Metrics","detail":"ASR + false blocks","kind":""},{"id":"effect","label":"Release gate","detail":"risk decision","kind":"privileged"}],"steps":[{"at":"actor","caption":"Start with actor capability and provenance. Natural language, documents, model artifacts, and tool results can all carry adversarial influence."},{"at":"interface","caption":"The application harness assembles context and makes deterministic choices. This layer is ordinary software and owns enforceable policy."},{"at":"context","caption":"Context may be relevant without being trusted, authorized, current, or safe to treat as instructions."},{"at":"model","violated":"model","caption":"Teams celebrate one blocked jailbreak, use only static public prompts, leak the test set into development, ignore utility regressions, or report aggregate accuracy without failure cost."},{"at":"effect","caption":"Impact appears only when output reaches data, a tool, a person, compute, or another security boundary."},{"at":"context","caption":"Define system-specific abuse outcomes, create held-out and adaptive cases, label with clear rubrics, run repeated trials, segment results, and gate changes on risk thresholds. Verification: Track attack success rate, false-positive rate, severity-weighted loss, tool-policy violations, data leakage, utility, latency, and confidence intervals across versions."}]});renderEvalLab("eval-lab");
+renderQuiz("quiz", [
+  { prompt: "Model — AI behavior varies by model, prompt, context, tools, sampling, and attacker adaptation; anecdotes cannot establish a dependable control. What should you identify next?", options: ["Locate the authoritative decision and write its invariant", "Choose a scanner and accept its default severity", "Hide the feature and trust ordinary client behavior", "Add encryption before mapping assets and attacker capabilities"], answer: 0, explain: "The model becomes actionable only when its invariant and authoritative decision are explicit. Teams celebrate one blocked jailbreak, use only static public prompts, leak the test set into development, ignore utility regressions, or report aggregate accuracy without failure cost." },
+  { prompt: "Failure — Teams celebrate one blocked jailbreak, use only static public prompts, leak the test set into development, ignore utility regressions, or report aggregate accuracy without failure cost. Which response addresses the root cause?", options: ["Remove the unsafe transition at its authoritative boundary", "Block the demonstrated string at the outer proxy", "Document the risk and rely on careful operators", "Increase logging while preserving the same vulnerable behavior"], answer: 0, explain: "Define system-specific abuse outcomes, create held-out and adaptive cases, label with clear rubrics, run repeated trials, segment results, and gate changes on risk thresholds. Root-cause repair outlives one payload or interface." },
+  { prompt: "Control — Define system-specific abuse outcomes, create held-out and adaptive cases, label with clear rubrics, run repeated trials, segment results, and gate changes on risk thresholds. What evidence should close the work?", options: ["Test allowed denied sibling and exceptional behavior together", "Confirm only the original proof now returns failure", "Verify new validation code appears during review today", "Trust the scanner when its warning disappears completely"], answer: 0, explain: "Track attack success rate, false-positive rate, severity-weighted loss, tool-policy violations, data leakage, utility, latency, and confidence intervals across versions. Closure needs behavioral evidence plus preserved legitimate use." },
+  { prompt: "Spaced review — Guardrails as Layered Controls: Measure attack success, false blocks, latency, cost, coverage, fail-open behavior, adaptive variants, and the effect of removing each layer. What kind of evidence is this?", options: ["Verification tests behavior across adversarial boundary conditions explicitly", "Prevention removes one exact payload from incoming requests", "Containment replaces all root-cause engineering work permanently today", "Detection proves the vulnerability can never recur again"], answer: 0, explain: "Verification challenges the claimed property under allowed, denied, variant, and failure conditions; it does not merely inspect implementation." }
+]);
+</script></main></body></html>

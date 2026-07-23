@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Engineering Glossary</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <span class="kicker">Reference · Application Security</span>
+  <h1>Security Engineering Glossary</h1>
+  <p class="lede">Course vocabulary, kept precise and stack-agnostic. This document grows as terms enter the curriculum.</p>
+
+  <h2>Foundations</h2>
+  <dl>
+    <dt id="asset"><strong>Asset</strong></dt>
+    <dd>Something whose confidentiality, integrity, availability, authenticity, or correct use matters: data, money, identities, compute, reputation, or a business capability.</dd>
+
+    <dt id="actor"><strong>Actor</strong></dt>
+    <dd>A person, service, device, process, or organization that interacts with the system. Actors have capabilities and goals; “user” does not imply trusted.</dd>
+
+    <dt id="adversary"><strong>Adversary</strong></dt>
+    <dd>An actor deliberately trying to violate the intended security policy. Model concrete capabilities and access, not a vague all-powerful attacker.</dd>
+
+    <dt id="security-policy"><strong>Security policy</strong></dt>
+    <dd>A falsifiable statement describing which actor may perform which action on which asset under which conditions.</dd>
+
+    <dt id="trust"><strong>Trust</strong></dt>
+    <dd>A dependency on an actor or component behaving as expected. Trust is an assumption to justify and minimize, not a feeling of safety.</dd>
+
+    <dt id="trust-boundary"><strong>Trust boundary</strong></dt>
+    <dd>A place where data or control crosses between components with different identities, owners, privilege, or assurance. Crossing it demands explicit validation and authorization.</dd>
+
+    <dt id="attack-surface"><strong>Attack surface</strong></dt>
+    <dd>The reachable interfaces, inputs, workflows, dependencies, identities, and operational paths through which an adversary may affect assets.</dd>
+
+    <dt id="vulnerability"><strong>Vulnerability</strong></dt>
+    <dd>A weakness that permits some threat to violate the intended policy under stated conditions.</dd>
+
+    <dt id="threat"><strong>Threat</strong></dt>
+    <dd>A plausible event or action that could harm an asset. A threat model connects actors, capabilities, paths, assets, and mitigations.</dd>
+
+    <dt id="control"><strong>Security control</strong></dt>
+    <dd>A design, implementation, configuration, or process intended to prevent, detect, limit, or recover from a policy violation.</dd>
+
+    <dt id="mitigation"><strong>Mitigation</strong></dt>
+    <dd>A response that reduces a threat's likelihood or impact. Good mitigations state assumptions and have a verification method.</dd>
+
+    <dt id="invariant"><strong>Security invariant</strong></dt>
+    <dd>A property that must remain true across every valid state transition, such as “a tenant can read only records scoped to that tenant.”</dd>
+
+    <dt id="least-privilege"><strong>Least privilege</strong></dt>
+    <dd>Grant an identity only the actions and resources it needs, under the narrowest practical conditions and duration.</dd>
+
+    <dt id="defense-in-depth"><strong>Defense in depth</strong></dt>
+    <dd>Independent layers that reduce the chance one control failure becomes complete compromise. More controls are useful only when they address distinct failure modes.</dd>
+
+    <dt id="verification"><strong>Verification</strong></dt>
+    <dd>Evidence that a control meets a stated requirement under legitimate and adversarial conditions. A security claim without a test remains an assumption.</dd>
+  </dl>
+
+  <h2>Application vulnerabilities</h2>
+  <dl>
+    <dt id="injection"><strong>Injection</strong></dt><dd>Untrusted data changes the syntax or behavior of an interpreter such as SQL, a shell, or a template engine.</dd>
+    <dt id="sqli"><strong>SQL injection</strong></dt><dd>Input changes SQL query structure instead of remaining a bound value.</dd>
+    <dt id="ssrf"><strong>SSRF</strong></dt><dd>Server-side request forgery: an attacker influences a server to connect to an unintended destination using the server's network position or credentials.</dd>
+    <dt id="traversal"><strong>Path traversal</strong></dt><dd>Attacker-controlled file references escape an intended filesystem root through path semantics, links, encodings, or archive entries.</dd>
+    <dt id="deserialization"><strong>Unsafe deserialization</strong></dt><dd>Untrusted serialized data selects types or reconstruction behavior with security-relevant side effects.</dd>
+    <dt id="xss"><strong>XSS</strong></dt><dd>Cross-site scripting: untrusted data becomes executable browser syntax in an HTML, attribute, URL, JavaScript, CSS, or DOM context.</dd>
+    <dt id="csrf"><strong>CSRF</strong></dt><dd>Cross-site request forgery: another site causes a browser to exercise ambient user credentials on a target application.</dd>
+    <dt id="cors"><strong>CORS</strong></dt><dd>Browser protocol for allowing selected origins to read cross-origin responses; it is not authentication and does not generally stop requests from being sent.</dd>
+    <dt id="business-logic"><strong>Business-logic vulnerability</strong></dt><dd>A sequence of individually valid actions violates an application-specific rule or invariant.</dd>
+    <dt id="race-condition"><strong>Race condition</strong></dt><dd>Security behavior depends on timing or interleaving between operations, often violating an invariant between check and effect.</dd>
+  </dl>
+
+  <h2>Identity and access</h2>
+  <dl>
+    <dt id="authentication"><strong>Authentication</strong></dt><dd>Establishing which identity is interacting, with a stated assurance level.</dd>
+    <dt id="authorization"><strong>Authorization</strong></dt><dd>Deciding whether a specific identity may perform a specific action on a specific resource under current conditions.</dd>
+    <dt id="bola"><strong>BOLA / IDOR</strong></dt><dd>Broken object-level authorization: a caller can act on an object because the server fails to bind identity to permission over that object.</dd>
+    <dt id="session"><strong>Session</strong></dt><dd>Server-recognized continuity that binds requests to prior authentication state, commonly represented by a bearer identifier.</dd>
+    <dt id="mfa"><strong>MFA</strong></dt><dd>Authentication using more than one factor category; factors differ substantially in phishing and replay resistance.</dd>
+    <dt id="oauth"><strong>OAuth 2.0</strong></dt><dd>A framework for delegated authorization in which a client obtains scoped access to a resource server.</dd>
+    <dt id="oidc"><strong>OpenID Connect</strong></dt><dd>An identity layer over OAuth 2.0 that supplies authenticated claims about an end user.</dd>
+    <dt id="jwt"><strong>JWT</strong></dt><dd>A compact claim container. Signed JWTs provide integrity and origin authentication, not secrecy; safe use requires full claim and key validation.</dd>
+    <dt id="rbac"><strong>RBAC</strong></dt><dd>Role-based access control: permissions are grouped into roles assigned to identities.</dd>
+    <dt id="abac"><strong>ABAC</strong></dt><dd>Attribute-based access control: policy evaluates attributes of subject, resource, action, and environment.</dd>
+  </dl>
+
+  <h2>Secure delivery and cryptography</h2>
+  <dl>
+    <dt id="sast"><strong>SAST</strong></dt><dd>Static application security testing: automated analysis of source or compiled code without exercising a deployed application.</dd>
+    <dt id="dast"><strong>DAST</strong></dt><dd>Dynamic application security testing: automated interaction with a running application from the outside.</dd>
+    <dt id="sca"><strong>SCA</strong></dt><dd>Software composition analysis: inventory and known-risk analysis for dependencies and components.</dd>
+    <dt id="sbom"><strong>SBOM</strong></dt><dd>Software bill of materials: an inventory of components included in a software artifact.</dd>
+    <dt id="csprng"><strong>CSPRNG</strong></dt><dd>Cryptographically secure pseudorandom number generator suitable for keys, tokens, nonces, and other unpredictable values.</dd>
+    <dt id="mac"><strong>MAC</strong></dt><dd>Message authentication code: a keyed construction that provides integrity and authenticity to parties sharing the key.</dd>
+    <dt id="aead"><strong>AEAD</strong></dt><dd>Authenticated encryption with associated data: encryption that provides confidentiality and integrity while binding optional unencrypted context.</dd>
+    <dt id="nonce"><strong>Nonce</strong></dt><dd>A value used once under a given cryptographic key according to the construction's requirements; it often need not be secret.</dd>
+    <dt id="signature"><strong>Digital signature</strong></dt><dd>A private-key operation whose result can be verified with the corresponding public key to establish message origin and integrity.</dd>
+    <dt id="tls"><strong>TLS</strong></dt><dd>Protocol providing an authenticated, encrypted transport channel; its protection exists between actual termination points.</dd>
+  </dl>
+
+  <h2>Cloud and platform security</h2>
+  <dl>
+    <dt id="iam"><strong>IAM</strong></dt><dd>Identity and access management for principals, credentials, policies, roles, trust relationships, and resource permissions.</dd>
+    <dt id="temporary-credentials"><strong>Temporary credentials</strong></dt><dd>Short-lived credentials issued dynamically to an identity or workload, reducing exposure compared with embedded long-lived keys.</dd>
+    <dt id="workload-identity"><strong>Workload identity</strong></dt><dd>A platform-issued identity representing a running service or workload rather than a human or embedded shared secret.</dd>
+    <dt id="control-plane"><strong>Control plane</strong></dt><dd>Administrative interfaces that configure, create, modify, and govern infrastructure or services.</dd>
+    <dt id="data-plane"><strong>Data plane</strong></dt><dd>Interfaces through which a deployed service processes its ordinary application traffic and data.</dd>
+    <dt id="container"><strong>Container</strong></dt><dd>A process-isolation and packaging mechanism that normally shares the host kernel; it is not a virtual-machine boundary by default.</dd>
+    <dt id="rbac-kubernetes"><strong>Kubernetes RBAC</strong></dt><dd>Cluster authorization over API verbs and resources, commonly granted to users, groups, and service accounts through roles and bindings.</dd>
+    <dt id="pod-security"><strong>Pod Security Standards</strong></dt><dd>Kubernetes profiles—Privileged, Baseline, and Restricted—that constrain security-relevant pod configuration.</dd>
+  </dl>
+
+  <h2>AI and LLM security</h2>
+  <dl>
+    <dt id="llm"><strong>Large language model (LLM)</strong></dt><dd>A probabilistic model that generates or scores sequences. Its output is untrusted application input, not an authorization or factual oracle.</dd>
+    <dt id="agent"><strong>Agent</strong></dt><dd>A system combining a model with a harness, context, memory, tools, identities, and an environment to pursue goals across multiple steps.</dd>
+    <dt id="harness"><strong>Agent harness</strong></dt><dd>Ordinary application code that assembles context, routes models, exposes tools, applies policy, records state, and controls execution.</dd>
+    <dt id="prompt-injection"><strong>Prompt injection</strong></dt><dd>Attacker-influenced natural-language content attempts to change model behavior beyond the user's authorized intent. Direct injection comes from the user; indirect injection arrives through external content such as webpages, documents, messages, or tool results.</dd>
+    <dt id="rag"><strong>RAG</strong></dt><dd>Retrieval-augmented generation: external information is retrieved and placed into model context. Relevance does not imply authorization, provenance, freshness, or trust.</dd>
+    <dt id="context-poisoning"><strong>Context poisoning</strong></dt><dd>Adversarial content is placed into retrieved data, memory, caches, or tool results so it persistently influences later model behavior.</dd>
+    <dt id="excessive-agency"><strong>Excessive agency</strong></dt><dd>An AI system has more actions, permissions, autonomy, destinations, or duration than its user-authorized task requires.</dd>
+    <dt id="guardrail"><strong>Guardrail</strong></dt><dd>A deterministic policy or probabilistic classifier placed at an AI-system boundary to block, transform, or route risky input, context, tool calls, or output. A guardrail does not itself grant authorization.</dd>
+    <dt id="security-eval"><strong>Security eval</strong></dt><dd>A versioned set of threat-derived cases, scorers, metrics, and release thresholds used to measure security behavior across system changes.</dd>
+    <dt id="attack-success-rate"><strong>Attack success rate (ASR)</strong></dt><dd>The fraction of adversarial trials that achieve the defined harmful outcome. The outcome and denominator must be explicit.</dd>
+    <dt id="false-block-rate"><strong>False-block rate</strong></dt><dd>The fraction of legitimate trials incorrectly blocked by a security control; it measures utility cost alongside attack reduction.</dd>
+    <dt id="model-poisoning"><strong>Model or data poisoning</strong></dt><dd>Manipulation of a model artifact, training data, fine-tuning data, or evaluation data to produce attacker-beneficial behavior.</dd>
+    <dt id="llm-jacking"><strong>LLM jacking</strong></dt><dd>Unauthorized use of stolen or exposed AI service credentials or infrastructure, often causing compute cost, capacity loss, or policy abuse.</dd>
+    <dt id="mcp"><strong>Model Context Protocol (MCP)</strong></dt><dd>A protocol for connecting AI applications to tools and context providers. Transport authorization does not replace per-tool, per-resource application authorization.</dd>
+  </dl>
+
+  <div class="lesson-footer">
+    <p><a href="../lessons/0001-security-is-policy-under-pressure.html">Start with lesson 0001</a> · <a href="../CURRICULUM.md">Curriculum</a></p>
+  </div>
+</main>
+</body>
+</html>

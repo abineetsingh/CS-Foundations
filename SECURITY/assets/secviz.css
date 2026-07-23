@@ -1,0 +1,130 @@
+.secviz {
+  margin: 1.5rem 0;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.secviz-stage {
+  position: relative;
+  min-height: 250px;
+  padding: 2rem 1rem 1rem;
+}
+
+.secviz-boundary {
+  position: absolute;
+  inset: 1rem 34% 1rem 34%;
+  border-left: 2px dashed #b8860b;
+  border-right: 2px dashed #b8860b;
+  background: rgba(255, 247, 223, 0.45);
+}
+
+.secviz-boundary span {
+  position: absolute;
+  top: -0.2rem;
+  width: 100%;
+  text-align: center;
+  color: #775b15;
+  font: 0.72rem "SF Mono", Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.secviz-nodes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.2rem;
+  align-items: center;
+  min-height: 190px;
+}
+
+.secviz-node {
+  z-index: 2;
+  padding: 0.8rem 0.5rem;
+  border: 2px solid #999;
+  border-radius: 8px;
+  background: #fffff8;
+  text-align: center;
+  transition: border-color 180ms, box-shadow 180ms, transform 180ms;
+}
+
+.secviz-node strong, .secviz-node small { display: block; }
+.secviz-node small { margin-top: 0.2rem; color: var(--muted); }
+.secviz-node.active { border-color: var(--security); box-shadow: 0 0 0 4px #f5dce5; transform: translateY(-2px); }
+.secviz-node.violated { border-color: var(--bad); background: #fff1ef; }
+
+.secviz-arrow {
+  z-index: 3;
+  position: absolute;
+  top: 49%;
+  left: 19%;
+  right: 19%;
+  border-top: 2px solid #777;
+}
+
+.secviz-arrow::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -6px;
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid #777;
+  border-right: 2px solid #777;
+  transform: rotate(45deg);
+}
+
+.secviz-packet {
+  z-index: 4;
+  position: absolute;
+  top: calc(49% - 1.1rem);
+  left: 16%;
+  max-width: 12rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  font: 0.72rem "SF Mono", Menlo, monospace;
+  transition: left 300ms ease;
+}
+
+.secviz-packet.middle { left: 43%; }
+.secviz-packet.end { left: 70%; }
+.secviz-packet.attack { border-color: var(--bad); color: var(--bad); background: #fff1ef; }
+
+.secviz-caption {
+  min-height: 5.5rem;
+  margin: 0;
+  padding: 1rem 1.2rem;
+  border-top: 1px solid var(--rule);
+  background: #f8f8f1;
+}
+
+.secviz-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--rule);
+}
+
+.secviz-controls button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #aaa;
+  border-radius: 5px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.secviz-controls button:disabled { cursor: default; opacity: 0.45; }
+.secviz-progress { color: var(--muted); font-size: 0.85rem; }
+
+@media (max-width: 620px) {
+  .secviz-nodes { gap: 0.5rem; }
+  .secviz-node { padding: 0.55rem 0.25rem; font-size: 0.82rem; }
+  .secviz-node small { font-size: 0.68rem; }
+  .secviz-packet { font-size: 0.62rem; max-width: 7rem; }
+}

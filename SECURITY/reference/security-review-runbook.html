@@ -1,0 +1,14 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Review Runbook</title><link rel="stylesheet" href="../assets/course.css"></head><body><main><span class="kicker">Reference · Application Security</span><h1>Security Review Runbook</h1><p class="lede">A repeatable path from changed behavior to evidence-backed finding.</p>
+<h2>1. Scope the change</h2><ol><li>What user or system capability changed?</li><li>Which assets, identities, entry points, dependencies, and deployment settings are touched?</li><li>What is explicitly outside this review?</li></ol>
+<h2>2. State invariants</h2><ul><li>Who may perform each new action, on which object, under which conditions?</li><li>Which data must remain confidential, integral, available, fresh, or correctly attributed?</li><li>Which limits, ordering rules, and one-time transitions must survive concurrency and retries?</li></ul>
+<h2>3. Trace authority</h2><table><tr><th>Trace</th><th>Ask</th></tr><tr><td>Input → parser</td><td>Can alternate encodings, duplicates, coercion, or size change interpretation?</td></tr><tr><td>Identity → policy</td><td>Where is caller identity established, and is permission checked for this action and object?</td></tr><tr><td>State → effect</td><td>Is the transition atomic, idempotent, bounded, and safe under failure?</td></tr><tr><td>Dependency → privilege</td><td>Can an upstream response redirect, expand, select a file, or exercise this service's authority?</td></tr><tr><td>Error → response/log</td><td>Does failure expose data, preserve partial state, or fail open?</td></tr></table>
+<h2>4. Prove the smallest case</h2><p>Write one legitimate test and one abuse test. Change one variable. Prefer a harmless marker over data extraction, persistence, or disruption. A scanner result is a hypothesis until tied to code, violated policy, and affected asset.</p>
+<h2>5. Review the repair</h2><p>Fix the root decision at the authoritative boundary. Search sibling paths. Preserve a regression test. Add containment and detection only where they address independent failure modes.</p>
+<h2>Finding format</h2><pre><code>Policy: [what must remain true]
+Affected asset: [specific data/capability]
+Preconditions: [attacker identity/access]
+Evidence: [minimal reproducible behavior]
+Root cause: [missing/incorrect decision]
+Impact: [credible consequence and scope]
+Repair: [root control + containment]
+Verification: [denied abuse + allowed use + variants]</code></pre><div class="lesson-footer"><p><a href="../lessons/0001-security-is-policy-under-pressure.html">Course start</a> · <a href="../CURRICULUM.md">Curriculum</a> · <a href="glossary.html">Glossary</a></p></div></main></body></html>

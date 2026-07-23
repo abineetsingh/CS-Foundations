@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 0014 — Server-Side Template Injection</title>
+<link rel="stylesheet" href="../assets/course.css"><link rel="stylesheet" href="../assets/secviz.css"></head><body><main>
+<span class="kicker">Lesson 0014 · ~30 minutes · Phase 1 · Server-Side Vulnerability Mechanics</span>
+<h1>Server-Side Template Injection</h1><p class="lede">One skill, learned today: separate template code from untrusted values.</p>
+<div class="mission"><span class="callout-label">Mission connection</span><p>This skill supports both sides of the mission: explain the security decision clearly under interview pressure, then apply it to production software in a way that survives different clients, frameworks, and deployment stacks.</p></div>
+
+
+<h2>The security model</h2><p>A template engine may expose expressions, objects, functions, files, or process capabilities.</p>
+<table><tr><th>Question</th><th>Answer to make explicit</th></tr>
+<tr><td>What must remain true?</td><td>Write one observable invariant before choosing a tool or payload.</td></tr>
+<tr><td>Where is it decided?</td><td>Name the component holding authoritative identity, state, or key material.</td></tr>
+<tr><td>What can the adversary vary?</td><td>List reachable inputs, ordering, timing, identity, dependencies, and failure paths.</td></tr>
+<tr><td>What proves the control?</td><td>Keep legitimate behavior passing and adversarial behavior failing for the intended reason.</td></tr></table>
+
+<h2>The failure pattern</h2><p>User content becomes the template source, or a powerful context turns expression evaluation into code execution.</p>
+<div class="note"><span class="callout-label">Root-cause question</span><p>Do not ask only “which payload works?” Ask: <em>which trusted interpretation, policy decision, state transition, or authority changed because of attacker-controlled data or timing?</em> That answer transfers across Python, JavaScript, web, mobile-backed APIs, services, and cloud platforms.</p></div>
+
+<h2>Watch the decision cross its boundary</h2><div id="flow"></div>
+
+
+<h2>Design the durable control</h2><p>Keep templates static and trusted, pass data as values, minimize context, and isolate rendering when necessary.</p>
+<p>Prefer controls that make the safe path easy and centralized. Prevention addresses the root transition; containment limits blast radius if prevention fails; detection makes unexpected use visible. These layers should fail independently rather than repeat the same assumption three times.</p>
+
+
+<h2>Verify instead of believing</h2><p>Use harmless arithmetic or property access in a lab, then prove it renders literally after repair.</p>
+<pre><code># Security regression shape
+assert legitimate_case().allowed
+assert adversarial_case().denied_for_expected_reason
+assert sibling_path_case().preserves_same_invariant
+assert failure_path_case().fails_safely</code></pre>
+
+<h2>Practice the complete loop</h2><div class="safety"><span class="callout-label">Authorized lab · hosted sandbox</span>
+    <p><strong>Permitted target:</strong> only the disposable lab instance launched from <a href="https://portswigger.net/web-security/server-side-template-injection">PortSwigger Server-Side Template Injection labs</a>. <strong>Objective:</strong> demonstrate the lesson's failure with the smallest harmless proof. <strong>Stop:</strong> once the lab's synthetic marker or intended state change proves the issue. Do not reuse payloads against any other host.</p></div>
+    <ol><li>Launch an Apprentice-level lab for this topic and record its unique host in a scope card.</li><li>Capture one legitimate baseline request. Predict the exact field or state transition to change.</li><li>Make one controlled change and explain the resulting policy violation.</li><li>Read the remediation guidance, state the root-cause repair, and write one regression test in pseudocode.</li><li>End the lab instance and retain only sanitized notes—no tokens or cookies.</li></ol>
+
+<h2>Check yourself</h2><p>Retrieve the model before selecting an answer. Options are shuffled; explanations complete the feedback loop.</p><div id="quiz"></div>
+
+<h2>Go deeper</h2><p>Primary source: <a href="https://portswigger.net/web-security/server-side-template-injection">PortSwigger Server-Side Template Injection</a>. Read the overview and defensive guidance now; use advanced exploitation material only inside its explicit training scope.</p>
+<div class="lesson-footer"><p><a href="0013-unsafe-deserialization.html">◀ 0013 Unsafe Deserialization and Object Construction</a> · <a href="../reference/glossary.html">Glossary</a> · <a href="../reference/security-review-runbook.html">Review runbook</a> · <a href="0015-information-disclosure-and-exceptions.html">0015 Information Disclosure and Exceptional Conditions ▶</a></p><p>Anything unclear—especially the invariant, authority, or evidence? Ask your teacher before moving on.</p></div>
+
+<script src="../assets/quiz.js"></script><script src="../assets/secviz.js"></script><script>
+renderSecurityFlow("flow", { boundary: "authoritative security boundary", nodes: [
+  {id:"input",label:"Untrusted input",detail:"adversary can influence"},{id:"decision",label:"Application decision",detail:"policy must be explicit"},{id:"asset",label:"Protected asset",detail:"impact becomes real"}], steps: [
+  {at:"input",packet:"baseline case",caption:"Begin with intended behavior and record the actor, input, state, and expected result."},
+  {at:"decision",packet:"trusted interpretation",position:"middle",caption:"Trace where raw input becomes a parsed value, identity, policy decision, state transition, or privileged operation."},
+  {at:"asset",packet:"intended result",position:"end",caption:"The baseline preserves the invariant and reaches the protected asset only under allowed conditions."},
+  {at:"input",packet:"adversarial variation",attack:true,caption:"Change one capability at a time: value, encoding, identity, order, timing, dependency response, or failure path."},
+  {at:"decision",violated:"decision",packet:"policy violation",position:"middle",attack:true,caption:"User content becomes the template source, or a powerful context turns expression evaluation into code execution."},
+  {at:"decision",packet:"control + evidence",position:"middle",caption:"Keep templates static and trusted, pass data as values, minimize context, and isolate rendering when necessary. Verification: Use harmless arithmetic or property access in a lab, then prove it renders literally after repair."}
+]});
+
+renderQuiz("quiz", [
+  { prompt: "Model — A template engine may expose expressions, objects, functions, files, or process capabilities. What should you identify next?", options: ["Locate the authoritative decision and write its invariant", "Choose a scanner and accept its default severity", "Hide the feature and trust ordinary client behavior", "Add encryption before mapping assets and attacker capabilities"], answer: 0, explain: "The model becomes actionable only when its invariant and authoritative decision are explicit. User content becomes the template source, or a powerful context turns expression evaluation into code execution." },
+  { prompt: "Failure — User content becomes the template source, or a powerful context turns expression evaluation into code execution. Which response addresses the root cause?", options: ["Remove the unsafe transition at its authoritative boundary", "Block the demonstrated string at the outer proxy", "Document the risk and rely on careful operators", "Increase logging while preserving the same vulnerable behavior"], answer: 0, explain: "Keep templates static and trusted, pass data as values, minimize context, and isolate rendering when necessary. Root-cause repair outlives one payload or interface." },
+  { prompt: "Control — Keep templates static and trusted, pass data as values, minimize context, and isolate rendering when necessary. What evidence should close the work?", options: ["Test allowed denied sibling and exceptional behavior together", "Confirm only the original proof now returns failure", "Verify new validation code appears during review today", "Trust the scanner when its warning disappears completely"], answer: 0, explain: "Use harmless arithmetic or property access in a lab, then prove it renders literally after repair. Closure needs behavioral evidence plus preserved legitimate use." },
+  { prompt: "Spaced review — Unsafe Deserialization and Object Construction: Mutate type markers and unexpected fields; prove the parser returns data or rejects input without side effects. What kind of evidence is this?", options: ["Verification tests behavior across adversarial boundary conditions explicitly", "Prevention removes one exact payload from incoming requests", "Containment replaces all root-cause engineering work permanently today", "Detection proves the vulnerability can never recur again"], answer: 0, explain: "Verification challenges the claimed property under allowed, denied, variant, and failure conditions; it does not merely inspect implementation." }
+]);
+</script></main></body></html>
